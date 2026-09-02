@@ -331,6 +331,55 @@ paste — tab or comma separated, messy unit spellings, Indian-format numbers.
 
 ---
 
+## Second revision — 2026-09-03
+
+Feedback from the owner running the deployed app on his own data. Several items were
+defects, and two invalidated Phase 0 assumptions.
+
+**A project has no fixed contract value.** The owner: _"in our work we dont have the total
+contract amount for a project — like for Tata project we dont have a fix amount, all our
+money depends on the work we have and their measurement and then bill calculate."_
+
+`contractValuePaise` was REQUIRED. With a made-up value entered, the project page claimed
+"still to bill ₹50,00,000" and warned about a ₹49,93,000 gap against the rate card — pure
+noise. It is now optional, and the two contract-derived figures return **null, not zero**,
+because zero reads as "nothing left to bill" on a job whose billing has barely started.
+
+This **settles R-01**, which the spec itself could not. Without a contract value there is
+only one possible meaning of _kitna baaki hai_: **receivable**, billed minus received. The
+other two were only ever answerable for a fixed-price job, which is now the exception.
+
+**The project page was too crowded.** Five dense sections stacked on one scroll —
+"the audience is a contractor who may not have much technical knowledge". Now tabs inside
+the project (`/projects/:id/bills` etc., so Back works and a tab can be linked), defaulting
+to Overview. A supervisor sees three tabs and no money at all. Not new nav entries: the nav
+had just been deliberately cut to six daily items, and project-scoped screens belong inside
+the project.
+
+**Missing Firestore indexes.** The month register and wage report both failed. A range query
+on `dateKey` needs an ASCENDING index; only the DESCENDING ones existed, which serve the
+"latest first" lists and do not satisfy a range scan. Both directions are now declared.
+
+**Bill and quotation rebuilt from the owner's real documents.** His bill carries M² _and_
+ST/SF for the same line so the client can check the conversion — enter either unit and both
+print. His quotation format, letterhead, and terms are reproduced. `sfqt` — a transposition
+in his own quotation — is a recognised unit alias, because a parser exists to accept what
+people actually type. `RFT` (running feet) added, with a test that it stays distinct from
+running metres: confusing them would misprice every riser by 3.28×.
+
+**GST: nothing to build.** The business holds a GSTIN, but the CLIENT raises the tax invoice.
+The GSTIN is an identifier printed on a letterhead, not an instruction to compute tax —
+ADR-003's default was right after all.
+
+**Hinglish, not Hindi.** The formal register was unreadable to the owner. Rewritten in how he
+actually speaks: पैसे दे दिए, कमाई, एडवांस, रेट.
+
+Also fixed in this round: PDF generation (a pop-up blocked because `window.open` ran after an
+`await`), the hardcoded business name on every bill, no way to record a wage payment,
+attendance taking seconds to show a tap, and clients being uneditable.
+
+---
+
 ## Phase 15 — Production hardening
 
 Full Security Rules review, every collection × role × operation · App Check moved to

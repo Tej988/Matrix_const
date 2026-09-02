@@ -29,12 +29,17 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
    * Parse as the user types so the amount in words appears live. A misplaced
    * zero in a contract value is a costly mistake, and reading
    * "eighteen lakh fifty thousand" back is what catches it (spec section 28).
+   *
+   * Blank is a valid answer, and the usual one: most of this business's work
+   * has no agreed total (RISKS.md R-01). Blank leaves the field off the
+   * project entirely rather than storing a zero.
    */
   let contractPaise: ReturnType<typeof Money.parseRupees> | null = null
   let parseError: string | null = null
   if (contractInput.trim() !== '') {
     try {
       contractPaise = Money.parseRupees(contractInput)
+      if (contractPaise <= 0) parseError = t('enterAmountLike')
     } catch {
       parseError = t('enterAmountLike')
     }
@@ -44,17 +49,20 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!contractPaise || !selectedClient) throw new Error(t('formIncomplete'))
+      if (!selectedClient) throw new Error(t('formIncomplete'))
       return projects.create(
         {
           name: name.trim(),
           code: code.trim(),
           clientId: selectedClient.id,
           clientName: selectedClient.name,
-          contractValuePaise: contractPaise,
           startDate: Dates.dateKey(startDate),
           status,
           taxProfile: NO_TAX,
+          // Conditional spread, not `contractValuePaise: contractPaise ?? 0`.
+          // A zero would be indistinguishable from a real fixed-price contract
+          // worth nothing, and every derived figure would inherit the lie.
+          ...(contractPaise !== null ? { contractValuePaise: contractPaise } : {}),
           ...(siteAddress.trim() ? { siteAddress: siteAddress.trim() } : {}),
         },
         { uid: user.uid, displayName: user.displayName },
@@ -67,7 +75,9 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
     },
   })
 
-  const ready = name.trim() !== '' && clientId !== '' && contractPaise !== null && contractPaise > 0
+  // The contract value is no longer part of "ready" - only a value that was
+  // typed and cannot be parsed blocks the form.
+  const ready = name.trim() !== '' && clientId !== '' && parseError === null
 
   if (clientList.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
 
@@ -122,16 +132,22 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
 
-      <Field label={t('contractValue')}>
+      <Field label={t('contractValueOptional')}>
         <input
           value={contractInput}
           onChange={(e) => setContractInput(e.target.value)}
           inputMode="decimal"
-          placeholder="18,50,000"
+          placeholder={t('optional')}
           className={inputClass}
         />
+        {/* Said before the field is filled, not as an error afterwards: a
+            contractor should read "leave it blank" and move on, rather than
+            invent a number to satisfy the form. */}
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t('contractValueOptionalHint')}
+        </p>
         {parseError && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{parseError}</p>}
-        {contractPaise !== null && (
+        {contractPaise !== null && parseError === null && (
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             <AmountWithWords paise={contractPaise} />
           </p>

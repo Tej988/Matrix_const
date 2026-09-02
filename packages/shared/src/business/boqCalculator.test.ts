@@ -249,19 +249,28 @@ describe('contract coverage', () => {
 
   it('flags a BOQ that does not add up to the project contract value', () => {
     const c = contractCoverage(items, fromRupees(18_50_000))
-    expect(c.boqTotalPaise).toBe(fromRupees(12_00_000))
-    expect(c.differencePaise).toBe(fromRupees(6_50_000))
-    expect(c.matches).toBe(false)
+    expect(c?.boqTotalPaise).toBe(fromRupees(12_00_000))
+    expect(c?.contractValuePaise).toBe(fromRupees(18_50_000))
+    expect(c?.differencePaise).toBe(fromRupees(6_50_000))
+    expect(c?.matches).toBe(false)
   })
 
   it('reports a match when they agree exactly', () => {
-    expect(contractCoverage(items, fromRupees(12_00_000)).matches).toBe(true)
+    expect(contractCoverage(items, fromRupees(12_00_000))?.matches).toBe(true)
   })
 
   it('reports a negative difference when the BOQ exceeds the contract', () => {
-    expect(contractCoverage(items, fromRupees(10_00_000)).differencePaise).toBe(
+    expect(contractCoverage(items, fromRupees(10_00_000))?.differencePaise).toBe(
       fromRupees(-2_00_000) as Paise,
     )
+  })
+
+  it('has nothing to say when the project has no contract value', () => {
+    // R-01: the rate card is the only agreed figure on a measure-and-bill job,
+    // so "the rate card totals X but the contract is Y" has no Y. Null, not a
+    // match - a match would claim an agreement that was never checked.
+    expect(contractCoverage(items, null)).toBeNull()
+    expect(contractCoverage(items, undefined)).toBeNull()
   })
 })
 

@@ -167,6 +167,13 @@ describe('project writes', () => {
     )
   })
 
+  it('lets an owner create a project with no contract value at all', async () => {
+    // The usual case: money follows measured work, so there is no agreed
+    // total to record (RISKS.md R-01).
+    const { contractValuePaise: _omitted, ...noContract } = projectDoc()
+    await assertSucceeds(setDoc(doc(as(OWNER), 'projects', 'p-measured'), noContract))
+  })
+
   it('rejects an unknown status', async () => {
     await assertFails(
       setDoc(doc(as(OWNER), 'projects', 'p-s'), { ...projectDoc(), status: 'FINISHED' }),

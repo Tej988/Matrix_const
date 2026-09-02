@@ -17,7 +17,11 @@ import { calculateOutstanding } from './outstanding'
  */
 
 export interface SummarySources {
-  contractValuePaise: Paise
+  /**
+   * Absent on a measure-and-bill job, which is most of them (R-01). Null and
+   * undefined both mean "no agreed total".
+   */
+  contractValuePaise?: Paise | null | undefined
   /** Non-cancelled bills only. */
   billNetAmounts: readonly Paise[]
   /** CONFIRMED client payments only - not PENDING or SUGGESTED. */
@@ -57,7 +61,10 @@ export function computeProjectSummary(
 
   return {
     projectId,
-    contractValuePaise: sources.contractValuePaise,
+    // Normalised to null so the stored document has one shape. Firestore has
+    // no `undefined`, and a summary that omitted the field entirely would read
+    // back as undefined on one client and absent on another.
+    contractValuePaise: sources.contractValuePaise ?? null,
     totalBilledPaise,
     totalReceivedPaise,
     receivablePaise: outstanding.receivablePaise,
@@ -81,7 +88,7 @@ export function computeProjectSummary(
 
 export function emptySummary(
   projectId: string,
-  contractValuePaise: Paise,
+  contractValuePaise: Paise | null | undefined,
   computedBy: string,
   computedAt: Date,
 ): ProjectSummary {
@@ -114,12 +121,9 @@ export interface SummaryDrift {
 }
 
 const MONETARY_FIELDS = [
-  'contractValuePaise',
   'totalBilledPaise',
   'totalReceivedPaise',
   'receivablePaise',
-  'unbilledBalancePaise',
-  'contractRemainingPaise',
   'approvedMeasuredPaise',
   'labourEarnedPaise',
   'labourPaidPaise',
@@ -127,6 +131,16 @@ const MONETARY_FIELDS = [
   'otherExpensesPaise',
   'cashOutPaise',
   'netPositionPaise',
+] as const satisfies readonly (keyof ProjectSummary)[]
+
+/**
+ * The contract-derived trio, which is null on a project with no agreed total
+ * (R-01) and so cannot be compared the same way.
+ */
+const NULLABLE_MONETARY_FIELDS = [
+  'contractValuePaise',
+  'unbilledBalancePaise',
+  'contractRemainingPaise',
 ] as const satisfies readonly (keyof ProjectSummary)[]
 
 export function detectDrift(
@@ -137,12 +151,34 @@ export function detectDrift(
 
   const drift: SummaryDrift[] = []
   for (const field of MONETARY_FIELDS) {
-    const s = stored[field] as Paise
-    const d = derived[field] as Paise
+    const s = stored[field]
+    const d = derived[field]
     if (s !== d) {
       drift.push({ field, stored: s, derived: d, differencePaise: subtract(d, s) })
     }
   }
+
+  for (const field of NULLABLE_MONETARY_FIELDS) {
+    const s = stored[field]
+    const d = derived[field]
+    /*
+     * Absent on both sides is agreement, not a zero-vs-zero comparison - a
+     * project with no contract value genuinely has no unbilled balance, and
+     * reporting one would be the false drift this guard exists to prevent.
+     *
+     * Absent on exactly one side means the contract value was added or removed
+     * since the summary was written. That is a real change, but the only
+     * honest "correct" value to print for it is "nothing", and this table
+     * carries amounts - a fabricated ₹0 in the Correct column would be worse
+     * than silence. The reconciliation write replaces the whole document, so
+     * the field is corrected regardless of whether a row appears for it.
+     */
+    if (s === null || d === null) continue
+    if (s !== d) {
+      drift.push({ field, stored: s, derived: d, differencePaise: subtract(d, s) })
+    }
+  }
+
   return drift
 }
 

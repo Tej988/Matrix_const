@@ -152,18 +152,43 @@ export function boqTotals(items: readonly BoqItem[]): BoqTotals {
   }
 }
 
+export interface ContractCoverage {
+  boqTotalPaise: Paise
+  /**
+   * The contract value that was compared against. Carried on the result so the
+   * caller can name both sides of the gap without re-narrowing the optional
+   * input it just passed in.
+   */
+  contractValuePaise: Paise
+  differencePaise: Paise
+  matches: boolean
+}
+
 /**
  * A BOQ total that disagrees with the project's contract value is not
  * automatically wrong - a contract can include items not itemised - but the
  * owner should be able to see the gap rather than discover it at billing.
+ *
+ * Returns NULL when the project has no contract value (R-01): there is then
+ * nothing to reconcile the rate card against, and the amber "the rate card
+ * totals ₹7,000 but the contract is ₹50,00,000" warning is comparing a real
+ * number against an invented one. Null rather than a `matches: true` result,
+ * so the caller renders nothing instead of quietly claiming agreement.
  */
 export function contractCoverage(
   items: readonly BoqItem[],
-  projectContractValuePaise: Paise,
-): { boqTotalPaise: Paise; differencePaise: Paise; matches: boolean } {
+  projectContractValuePaise: Paise | null | undefined,
+): ContractCoverage | null {
+  if (projectContractValuePaise === null || projectContractValuePaise === undefined) return null
+
   const boqTotalPaise = sum(items.map((i) => i.contractAmountPaise))
   const differencePaise = subtract(projectContractValuePaise, boqTotalPaise)
-  return { boqTotalPaise, differencePaise, matches: differencePaise === ZERO }
+  return {
+    boqTotalPaise,
+    contractValuePaise: projectContractValuePaise,
+    differencePaise,
+    matches: differencePaise === ZERO,
+  }
 }
 
 /** A stable, readable code when the user does not supply one: `FLO-01`. */

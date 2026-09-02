@@ -125,11 +125,26 @@ export const en = {
   addClientFirst: 'Add a client first — every project belongs to one.',
   whatIsOutstanding: 'What is outstanding',
   labourAndCosts: 'Labour and costs',
+  contractValueOptional: 'Contract value (only if there is a fixed amount)',
+  contractValueOptionalHint:
+    'Leave blank if the amount depends on measured work — most projects do. Bills are then built from measurements, and "receivable" is what you are owed.',
+  noContractValue: 'No fixed contract amount',
+  noContractValueHint: 'Billed on measured work',
+  onlyReceivableApplies:
+    'This project has no agreed total, so there is no "still to bill" figure. What the client owes you today is the receivable above.',
   noMoneyForRole: 'Financial figures are not shown for your role.',
   overBilled:
     'Billing exceeds the contract value. That is legitimate after a change order, but worth confirming.',
   overPaid: 'The client has paid more than has been billed — an advance.',
   figuresComputed: 'Figures last computed',
+
+  // ---- project tabs ----
+  projectSections: 'Project sections',
+  tabOverview: 'Overview',
+  tabBills: 'Bills',
+  tabMoney: 'Money in & out',
+  tabRateCard: 'Rate card',
+  tabMeasurements: 'Measurements',
 
   // ---- clients ----
   clientsTitle: 'Clients',
@@ -508,11 +523,25 @@ export const hi: Strings = {
   addClientFirst: 'पहले क्लाइंट जोड़ें — हर प्रोजेक्ट किसी न किसी क्लाइंट का होता है।',
   whatIsOutstanding: 'क्या बाक़ी है',
   labourAndCosts: 'मज़दूरी और ख़र्च',
+  contractValueOptional: 'ठेके का पैसा (अगर रकम तय है तभी)',
+  contractValueOptionalHint:
+    'अगर पैसा नाप के हिसाब से बनता है तो खाली छोड़ दो — ज़्यादातर प्रोजेक्ट ऐसे ही होते हैं। फिर बिल नाप से बनता है, और जो लेना बाक़ी है वही असल आंकड़ा है।',
+  noContractValue: 'ठेके की रकम तय नहीं',
+  noContractValueHint: 'नाप के हिसाब से बिल बनता है',
+  onlyReceivableApplies:
+    'इस प्रोजेक्ट में कोई कुल रकम तय नहीं है, इसलिए “बिल बनाना बाक़ी” वाला आंकड़ा नहीं बनता। क्लाइंट से आज जो लेना है, वो ऊपर वाला आंकड़ा है।',
   noMoneyForRole: 'आपकी भूमिका के लिए पैसों के आंकड़े नहीं दिखाए जाते।',
   overBilled:
     'बिल ठेके की राशि से ज़्यादा हो गया है। चेंज ऑर्डर के बाद यह सही है, पर एक बार देख लें।',
   overPaid: 'क्लाइंट ने बिल से ज़्यादा पैसा दे दिया है — यह अग्रिम है।',
   figuresComputed: 'आंकड़े आख़िरी बार गिने गए',
+
+  projectSections: 'प्रोजेक्ट के हिस्से',
+  tabOverview: 'एक नज़र में',
+  tabBills: 'बिल',
+  tabMoney: 'पैसा आया-गया',
+  tabRateCard: 'रेट कार्ड',
+  tabMeasurements: 'नाप',
 
   clientsTitle: 'क्लाइंट',
   newClient: 'नया क्लाइंट',

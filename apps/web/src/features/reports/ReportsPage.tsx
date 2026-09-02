@@ -25,12 +25,15 @@ import {
   canShareFiles,
   headerFrom,
   openPrintWindow,
-  reportSummaryText,
+  renderReportHtml,
+  reportAttachMessage,
+  reportShareCaption,
   whatsappUrl,
   writeReport,
   type PrintableReport,
   type ReportHeader,
 } from './reportPdf'
+import { pdfFilename, renderHtmlToPdfBlob } from './pdfExport'
 import { ReportPreview } from './ReportPreview'
 import { ReportHeaderDialog } from './ReportHeaderDialog'
 import {
@@ -134,6 +137,41 @@ function withPlaceholder(header: ReportHeader): ReportHeader {
   return { ...header, businessName: letterheadFor(undefined).name }
 }
 
+/**
+ * Saves a File the page is already holding.
+ *
+ * The anchor is attached before it is clicked - Firefox ignores a click on a
+ * detached anchor - and the object URL is released on a timer rather than on
+ * the next line: revoking it synchronously can cancel a download the browser
+ * has only just queued, which showed up as a silently missing file.
+ */
+function saveFile(file: File): void {
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
+
+/**
+ * Opens WhatsApp's contact picker with a message ready to send.
+ *
+ * A real link rather than `window.open()`: a navigation is never pop-up
+ * blocked, and on desktop wa.me hands off to web.whatsapp.com by itself.
+ */
+function openWhatsapp(text: string): void {
+  const a = document.createElement('a')
+  a.href = whatsappUrl(text)
+  a.target = '_blank'
+  a.rel = 'noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
 /** A report that has been built and is on screen. */
 interface OpenReport {
   data: ReportData
@@ -158,8 +196,13 @@ export function ReportsPage() {
   const [period, setPeriod] = useState(Dates.currentPeriod() as string)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [open, setOpen] = useState<OpenReport | null>(null)
-  const [dialog, setDialog] = useState<'pdf' | 'header' | null>(null)
+  const [dialog, setDialog] = useState<'print' | 'header' | null>(null)
+  /* The rendered PDF, remembered alongside the exact report it was rendered
+     from. See readyPdf below. */
+  const [pdf, setPdf] = useState<{ of: PrintableReport; file: File } | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
 
   const projects = useQuery({
     queryKey: ['projects', user.uid, user.role],
@@ -180,6 +223,13 @@ export function ReportsPage() {
      render where it would not work, rather than failing on the tap. */
   const canAttachCsv = useMemo(() => (csvFile ? canShareFiles([csvFile]) : false), [csvFile])
 
+  /* A built PDF belongs to the exact report it was built from. Comparing
+     identity, rather than clearing the cache wherever the report changes, is
+     what makes it impossible to send a client last minute's letterhead: edit
+     the header and `printable` is a new object, so the old PDF stops counting
+     as ready and has to be rendered again. */
+  const readyPdf = pdf !== null && pdf.of === printable ? pdf.file : null
+
   const activeId = projectId || projects.data?.[0]?.id || ''
   const activeProject = projects.data?.find((p) => p.id === activeId)
 
@@ -198,6 +248,7 @@ export function ReportsPage() {
   async function view(key: string, build: () => Promise<ReportData>) {
     setBusy(key)
     setError(null)
+    setNotice(null)
     setDialog(null)
     try {
       // The letterhead is read here rather than compiled in. It was a literal
@@ -220,14 +271,19 @@ export function ReportsPage() {
   }
 
   /**
-   * Generates the printable page.
+   * Opens the browser's print view.
    *
    * Fully synchronous, and that is the point: the report was built when it was
    * viewed, so `window.open()` still holds the user-activation from this
    * click. Opening it after an await loses that activation and every browser
    * blocks the pop-up silently - which is exactly how this broke the first time.
+   *
+   * Kept alongside the generated PDF because the two are not the same artefact.
+   * This one has real, selectable, searchable text; the generated one is a
+   * photograph of the page. Anyone who has to copy a figure out of the document
+   * wants this path.
    */
-  function generatePdf(header: ReportHeader) {
+  function openPrintView(header: ReportHeader) {
     if (!open) return
     const win = openPrintWindow()
     if (!win) {
@@ -239,14 +295,83 @@ export function ReportsPage() {
     setDialog(null)
   }
 
+  /**
+   * Renders the sheet on screen into a real PDF binary.
+   *
+   * Slow - seconds on a long register, because the browser has to lay the whole
+   * report out and then photograph it - so the result is cached against the
+   * report it came from and the button says so while it runs.
+   */
+  async function preparePdf(): Promise<File | null> {
+    if (!open || !printable) return null
+    if (readyPdf) return readyPdf
+    setPdfBusy(true)
+    setError(null)
+    try {
+      const file = await renderHtmlToPdfBlob(
+        renderReportHtml(printable),
+        pdfFilename(open.data.file),
+      )
+      setPdf({ of: printable, file })
+      return file
+    } catch (e) {
+      setError((e as Error).message)
+      return null
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
+  /** Saving to disk needs no user-activation, so this one await is harmless. */
+  async function downloadPdf() {
+    const file = await preparePdf()
+    if (file) saveFile(file)
+  }
+
+  /**
+   * Hands the PDF to WhatsApp.
+   *
+   * SYNCHRONOUS, AND IT HAS TO BE. `navigator.share()` lives under the same
+   * transient-activation rule that made `window.open()` fail after an await:
+   * the activation expires in about five seconds, and rendering a month of
+   * attendance takes longer than that. Awaiting the render here would give a
+   * NotAllowedError on exactly the long reports that most need sending.
+   *
+   * So the PDF is built by a previous, separate tap - `readyPdf` is non-null
+   * before this button is even offered - and this handler does nothing but hand
+   * over a file it already holds. Two taps is the price of getting the document
+   * itself into the chat instead of a retyped summary of it.
+   */
+  function shareReportPdf() {
+    if (!readyPdf || !printable) return
+    setError(null)
+    if (canShareFiles([readyPdf])) {
+      void navigator
+        .share({
+          files: [readyPdf],
+          title: printable.header.title,
+          text: reportShareCaption(printable),
+        })
+        .catch((e: Error) => {
+          // Dismissing the share sheet rejects with AbortError. Not a failure.
+          if (e.name !== 'AbortError') setError(e.message)
+        })
+      return
+    }
+    // No desktop browser can push a file into another application, so the file
+    // goes to disk and WhatsApp opens with a covering note. Announced in the
+    // UI below rather than done quietly: a button that sent text while looking
+    // like it sent the document is the thing this whole change is undoing.
+    saveFile(readyPdf)
+    openWhatsapp(reportAttachMessage(printable, readyPdf.name))
+    setNotice(
+      `${readyPdf.name} has been downloaded and WhatsApp is opening in a new tab. ` +
+        'Attach that file to the chat - this browser cannot attach it for you.',
+    )
+  }
+
   function downloadCsv() {
-    if (!csvFile) return
-    const url = URL.createObjectURL(csvFile)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = csvFile.name
-    a.click()
-    URL.revokeObjectURL(url)
+    if (csvFile) saveFile(csvFile)
   }
 
   /**
@@ -565,6 +690,15 @@ export function ReportsPage() {
         </p>
       )}
 
+      {notice && (
+        <p
+          role="status"
+          className="rounded-lg bg-sky-50 p-4 text-sm text-sky-900 dark:bg-sky-950 dark:text-sky-200"
+        >
+          {notice}
+        </p>
+      )}
+
       {letterheadMissing && (
         <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           {BUSINESS_NOT_SET_WARNING}
@@ -580,6 +714,7 @@ export function ReportsPage() {
                 setOpen(null)
                 setDialog(null)
                 setError(null)
+                setNotice(null)
               }}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
             >
@@ -596,24 +731,46 @@ export function ReportsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setDialog('pdf')}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
-            >
-              PDF
-            </button>
-            <a
-              href={whatsappUrl(reportSummaryText(printable))}
-              target="_blank"
-              rel="noreferrer"
+              onClick={() => setDialog('print')}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
             >
-              Send summary on WhatsApp
-            </a>
+              Print
+            </button>
           </div>
 
           <ReportPreview report={printable} />
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Two states, one slot. Until the PDF exists there is nothing to
+                share, and offering a share button that has to build the file
+                first would break the user-activation rule shareReportPdf()
+                depends on. */}
+            {readyPdf ? (
+              <button
+                type="button"
+                onClick={shareReportPdf}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+              >
+                {t('shareOnWhatsApp')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void preparePdf()}
+                disabled={pdfBusy}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+              >
+                {pdfBusy ? t('preparing') : t('generatePdf')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void downloadPdf()}
+              disabled={pdfBusy}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-600"
+            >
+              Download PDF
+            </button>
             <button
               type="button"
               onClick={downloadCsv}
@@ -636,12 +793,19 @@ export function ReportsPage() {
               WhatsApp" that sends text is a lie the owner finds out about in
               front of a client. */}
           <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            <strong>PDF</strong> opens a print view — choose &ldquo;Save as PDF&rdquo; as the
-            printer.
+            <strong>{t('generatePdf')}</strong> turns the sheet above into a PDF — the letterhead,
+            the table and the signature block exactly as shown. A long register takes a few seconds.
+            The button then becomes <strong>{t('shareOnWhatsApp')}</strong>, which sends the PDF
+            itself, not a summary of it. Two taps, because a browser only lets a page hand a file to
+            another app during the tap — it cannot still be building the file at that moment.
             <br />
-            <strong>WhatsApp</strong> sends the header, the summary figures and the totals as a
-            message. It cannot carry the PDF itself: a web page cannot hand a printed file to
-            WhatsApp. Save the PDF first and attach it in the chat if the full sheet is needed.
+            On a phone that opens WhatsApp with the PDF already attached. On a desktop, where no
+            browser can pass a file to another application, the PDF downloads and WhatsApp opens
+            with a covering message — attach the downloaded file to the chat yourself.
+            <br />
+            <strong>Print</strong> opens the browser&rsquo;s own print view instead. Use it when the
+            text has to be selectable or searchable: the shared PDF is a picture of the page, which
+            is exactly what makes Hindi names come out right.
           </p>
         </section>
       ) : (
@@ -674,7 +838,10 @@ export function ReportsPage() {
 
           {summary.data && (
             <section className="grid gap-3 sm:grid-cols-4">
-              <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
+              {/* Absent on a job priced by measured work (RISKS.md R-01). */}
+              {summary.data.contractValuePaise !== null && (
+                <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
+              )}
               <Stat label={t('billed')} paise={summary.data.totalBilledPaise} />
               <Stat label={t('received')} paise={summary.data.totalReceivedPaise} />
               <Stat label={t('receivable')} paise={summary.data.receivablePaise} />
@@ -694,15 +861,15 @@ export function ReportsPage() {
                   disabled={busy !== null || activeId === ''}
                   className="shrink-0 rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
                 >
-                  {busy === r.key ? t('preparing') : 'View'}
+                  {busy === r.key ? t('preparing') : t('view')}
                 </button>
               </li>
             ))}
           </ul>
 
           <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            Open a report to read it on screen. The PDF, the WhatsApp summary and the spreadsheet
-            are all offered from there.
+            Open a report to read it on screen. The PDF, WhatsApp and the spreadsheet are all
+            offered from there.
             <br />
             <strong>Backup (§41).</strong> These downloads are the backup mechanism. There is no
             automatic off-site backup, because that needs a scheduled job the free plan cannot run.
@@ -715,11 +882,11 @@ export function ReportsPage() {
         <ReportHeaderDialog
           initial={open.header}
           saved={open.saved}
-          submitLabel={dialog === 'pdf' ? 'Generate PDF' : 'Use these details'}
+          submitLabel={dialog === 'print' ? 'Open print view' : 'Use these details'}
           onCancel={() => setDialog(null)}
           onSubmit={(header) => {
-            if (dialog === 'pdf') {
-              generatePdf(header)
+            if (dialog === 'print') {
+              openPrintView(header)
               return
             }
             setOpen({ ...open, header })

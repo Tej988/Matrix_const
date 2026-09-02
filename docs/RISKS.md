@@ -7,7 +7,7 @@ Severity: 🔴 blocks or corrupts money · 🟠 degrades a core promise · 🟡 
 
 ---
 
-## 🔴 R-01 — The spec contradicts itself about "outstanding"
+## ✅ R-01 — The spec contradicts itself about "outstanding" — ANSWERED, 2026-09-02
 
 **The clearest ambiguity in the document, and it sits on the headline number.**
 
@@ -42,11 +42,45 @@ The project card shows **Receivable** as the primary figure with **Unbilled** be
 because "who owes me money today" is the operationally useful number. The seed data will
 reproduce your real figures under whichever definition you confirm.
 
-**Needs your answer.** When your father says _"Tata project mein kitna baaki hai?"_ — does
-he mean the ₹8,50,000 of contract left to bill, or money invoiced and unpaid? This decides
-what the AI answers in Phase 12 and what the dashboard leads with. My reading of §3 is that
-he means ₹8,50,000, i.e. the contract balance — but §8 insists that is wrong, so I want it
-from you, not from me.
+**Answered by the business, not by the spec.** In the owner's words:
+
+> in our work we dont have the total contract amount for a project — like for Tata project
+> we dont have a fix amount, all our money depends on the work we have and their measurement
+> and then bill calculate.
+
+That settles it, and it invalidates the assumption underneath the question. **There is
+usually no contract value at all.** The client pays for what is measured and billed, month
+by month; the spec's ₹18,50,000 was an illustration, not how these jobs are priced.
+
+Two of the three figures are contract-derived, so on a normal project they simply do not
+exist:
+
+| Figure              | With a fixed price  | Measure-and-bill (the usual case)  |
+| ------------------- | ------------------- | ---------------------------------- |
+| `receivable`        | billed − received   | **billed − received — the answer** |
+| `unbilledBalance`   | contract − billed   | `null`                             |
+| `contractRemaining` | contract − received | `null`                             |
+
+So **receivable is the operative figure** — the one and only meaning of _"kitna baaki hai"_
+for this business. It never needed a contract value to begin with, which is why §8 was right
+to forbid deriving outstanding from one.
+
+**What changed in the code.** `Project.contractValuePaise` is now **optional**; a fixed-price
+contract is still supported and still shows all three figures, it is simply no longer the
+default assumption. Where there is no contract value:
+
+- `calculateOutstanding` returns `unbilledBalancePaise` and `contractRemainingPaise` as
+  `null`, **never `0`** — a zero reads on screen as "nothing left to bill", which on a job
+  whose billing has barely started is a lie rather than a rounding of the truth. The types
+  are `Paise | null`, so a caller cannot print one by accident.
+- `ProjectSummary` carries the same two fields as nullable, and `detectDrift` skips them
+  rather than reporting a permanent false difference on every measure-and-bill project.
+- `contractCoverage` returns `null`, so the amber "the rate card totals X but the contract
+  is Y" warning does not render — there is no Y to reconcile against.
+- The new-project form labels the field _"only if there is a fixed amount"_ and tells the
+  user to leave it blank when the money depends on measured work.
+- Firestore Rules make the field optional on create and update, while still validating it as
+  a whole non-negative count of paise whenever it is present.
 
 ---
 
@@ -167,17 +201,41 @@ hidden.
 
 ---
 
-## 🟠 R-08 — Devanagari in generated PDFs
+## ✅ R-08 — Devanagari in generated PDFs — SOLVED for reports, 2026-09-03
 
-Neither jsPDF nor pdfmake renders Devanagari with built-in fonts. A Hindi bill PDF needs an
-embedded Noto Sans Devanagari subset — several hundred KB — and correct shaping for
-conjuncts (क्ष, त्र, ज्ञ), which naive embedding gets wrong.
+Neither jsPDF nor pdfmake renders Devanagari with built-in fonts, and **embedding Noto Sans
+Devanagari does not fix it.** The font supplies glyphs; it does not decide which ones. A
+Devanagari cluster needs conjunct formation (क्ष, त्र, ज्ञ) and vowel reordering — the i-matra
+in किशोर is stored after its consonant and drawn before it — and that decision belongs to an
+OpenType shaping engine (HarfBuzz). No in-browser PDF writer ships one; they place glyphs in
+codepoint order. So a labourer named रामकिशोर would come out of a wage sheet as
+recognisable-but-wrong rubbish, which is worse than not printing the name at all.
 
-**Mitigation.** Bill PDFs are **English-only in v1**, which matches how construction bills
-are actually issued to corporate clients like Tata Project Limited. The _interface_ is fully
-bilingual (§29); only the PDF is not. If Hindi PDFs are needed, we lazy-load a subsetted
-font chunk so the main bundle stays small. Flagged now because "Hindi support" reasonably
-reads as including bills, and it will not.
+**Resolution — render, then photograph.** The browser already has a shaping engine and has
+already used it: every report is defined as HTML by
+`features/reports/reportPdf.ts#renderReportHtml`. `features/reports/pdfExport.ts` mounts that
+HTML in an off-screen iframe, waits on `document.fonts.ready` so nothing is captured
+mid-fallback, rasterises it with **html2canvas**, and wraps the pixels in an A4 page with
+**jsPDF**. Correct Devanagari is not something the exporter achieves; it is a property of the
+thing it photographs. The report can now be sent on WhatsApp as the actual document rather
+than as a retyped summary of it.
+
+**The trade, stated plainly.** The text in that PDF is an image: not selectable, not
+searchable, not machine-readable, and larger than a text PDF (~2× the bytes of an equivalent
+text page). For a document that is forwarded in a chat and read on a phone that is the same
+deal as a photographed bill, which is what it replaces. The browser-print path
+(`openPrintWindow`) is kept alongside it and still produces real, selectable text — the
+Reports UI says which button gives which.
+
+**Cost.** Both libraries are behind `await import()` and `vite.config.ts` walks the module
+graph to keep them and their whole transitive tree (core-js, canvg, fast-png, dompurify…)
+out of the always-loaded `vendor` chunk — see R-10. Initial bundle is unchanged; jsPDF
+(~127 KB gz) and html2canvas (~48 KB gz) are fetched on the tap that needs them, once per
+device thanks to the PWA cache.
+
+**Still open: bills.** Bill and quotation PDFs remain English-only browser-print documents,
+which matches how they are issued to corporate clients. The same technique applies to them
+if Hindi bills are ever wanted; only reports have been converted.
 
 ---
 
@@ -281,7 +339,8 @@ implies anything automatic.
 
 ## Open questions for you
 
-1. **R-01** — which number is "baaki hai": unbilled contract balance, or invoiced-and-unpaid?
+1. ~~**R-01** — which number is "baaki hai"?~~ **Answered:** there is usually no contract
+   value, so it is the receivable — invoiced and unpaid. See R-01 above.
 2. **A3** — is the business the contractor billing Tata Project Limited, or a subcontractor
    under someone else?
 3. **A4** — is a half day exactly 0.5 payable days, and are Leave/Holiday paid or unpaid?

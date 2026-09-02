@@ -361,7 +361,11 @@ function sumField(
 ): Paise {
   const values = [...summaries.values()]
     .filter((s): s is ProjectSummary => s !== null)
-    .map((s) => s[field] as Paise)
+    .map((s) => s[field])
+    // A project with no agreed total contributes nothing to a contract-value
+    // roll-up (RISKS.md R-01). Filtered rather than left to coerce, so the
+    // omission is a decision in the code and not an accident of `null + 0`.
+    .filter((v): v is Paise => typeof v === 'number')
   return values.length > 0 ? Money.sum(values) : Money.ZERO
 }
 

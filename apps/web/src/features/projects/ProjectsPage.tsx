@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { createProjectRepository } from '@mc/shared/repositories/projects'
 import { Money } from '@mc/shared'
-import type { Project } from '@mc/types'
+import type { Paise, Project } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
@@ -37,6 +37,10 @@ export function ProjectsPage() {
       <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
     )
   }
+
+  const priced = projects.data
+    .map((p) => p.contractValuePaise)
+    .filter((v): v is Paise => v !== undefined)
 
   return (
     <div className="space-y-6">
@@ -104,11 +108,19 @@ export function ProjectsPage() {
                 {/* Supervisors never see money - spec section 20. */}
                 {can('financials:view') && (
                   <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                    {t('contractValue')}{' '}
-                    <Amount
-                      paise={p.contractValuePaise}
-                      className="text-slate-900 dark:text-slate-100"
-                    />
+                    {p.contractValuePaise === undefined ? (
+                      // Not "₹0". A job priced by measurement has no total to
+                      // show, and a zero would read as a worthless contract.
+                      t('noContractValue')
+                    ) : (
+                      <>
+                        {t('contractValue')}{' '}
+                        <Amount
+                          paise={p.contractValuePaise}
+                          className="text-slate-900 dark:text-slate-100"
+                        />
+                      </>
+                    )}
                   </p>
                 )}
               </Link>
@@ -117,11 +129,15 @@ export function ProjectsPage() {
         </ul>
       )}
 
-      {can('financials:view') && projects.data.length > 0 && (
+      {/* Counted over the projects that actually have a contract value, and
+          hidden when none do - a "total contract value" that silently treats
+          every measure-and-bill job as zero would understate the business by
+          most of its work (R-01). */}
+      {can('financials:view') && priced.length > 0 && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          {t('totalContractAcross', { n: projects.data.length })}{' '}
+          {t('totalContractAcross', { n: priced.length })}{' '}
           <Amount
-            paise={Money.sum(projects.data.map((p) => p.contractValuePaise))}
+            paise={Money.sum(priced)}
             className="font-medium text-slate-900 dark:text-slate-100"
           />
         </p>

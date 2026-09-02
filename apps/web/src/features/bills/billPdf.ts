@@ -1,6 +1,5 @@
 import type { Bill, BillItem } from '@mc/types'
 import { Money, Dates } from '@mc/shared'
-import { UNIT_LABELS } from '@mc/types'
 
 /**
  * Bill PDF. Section 36.
@@ -29,6 +28,12 @@ export interface BusinessProfile {
   signatory?: string
 }
 
+/** Up to two decimals, trailing zeros dropped - "98.4", not "98.400". */
+function trimQty(value: number): string {
+  const rounded = Math.round(value * 100) / 100
+  return rounded.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+}
+
 const esc = (s: string): string =>
   s.replace(
     /[&<>"']/g,
@@ -55,35 +60,48 @@ export function renderBillHtml(
    * conversion. Showing only one would make the bill harder to verify than the
    * paper one it replaces.
    */
-  const showMetric = items.some((i) => i.unit === 'SQFT' || i.unit === 'SQM')
+  /*
+   * Columns copied from the owner's own bill, not invented:
+   *
+   *     Item | M² | ST / SF | Rate (RS) | Amount (RS)
+   *
+   * Work is measured on site in square metres and billed per square foot, so
+   * the bill carries BOTH and the client can check the conversion themselves.
+   * That is why there is no "Unit" column - the two quantity columns already
+   * name their units in the header - and no row-number column, which his
+   * bills do not have either.
+   */
   const SQFT_PER_SQM = 10.7639
 
-  const metricOf = (i: BillItem): string => {
-    if (i.unit === 'SQM') return i.quantity.toLocaleString('en-IN')
-    if (i.unit === 'SQFT') return (i.quantity / SQFT_PER_SQM).toFixed(1)
+  /** The M² figure. Blank for anything not measured by area. */
+  const squareMetres = (i: BillItem): string => {
+    if (i.unit === 'SQM') return trimQty(i.quantity)
+    if (i.unit === 'SQFT') return trimQty(i.quantity / SQFT_PER_SQM)
     return ''
+  }
+
+  /** The ST/SF figure - square feet, or the plain quantity for other units. */
+  const squareFeet = (i: BillItem): string => {
+    if (i.unit === 'SQM') return trimQty(i.quantity * SQFT_PER_SQM)
+    return trimQty(i.quantity)
   }
 
   const rows = items
     .map(
-      (i, n) => `
+      (i) => `
       <tr>
-        <td class="num">${n + 1}</td>
         <td>${esc(i.name)}</td>
-        ${showMetric ? `<td class="num">${esc(metricOf(i))}</td>` : ''}
-        <td class="num">${i.quantity.toLocaleString('en-IN')}</td>
-        <td>${esc(UNIT_LABELS[i.unit])}</td>
+        <td class="num">${esc(squareMetres(i))}</td>
+        <td class="num">${esc(squareFeet(i))}</td>
         <td class="num">${esc(Money.formatPlain(i.ratePaise))}</td>
         <td class="num">${esc(Money.formatPlain(i.amountPaise))}</td>
       </tr>`,
     )
     .join('')
 
-  const columnCount = showMetric ? 7 : 6
-
   const totalRow = (label: string, value: string, strong = false) => `
     <tr class="${strong ? 'strong' : ''}">
-      <td colspan="${columnCount - 1}" class="label">${esc(label)}</td>
+      <td colspan="4" class="label">${esc(label)}</td>
       <td class="num">${esc(value)}</td>
     </tr>`
 
@@ -135,11 +153,9 @@ ${business.gstin ? `<div class="meta"><strong>GSTIN:</strong> ${esc(business.gst
 <table>
   <thead>
     <tr>
-      <th style="width:34px">#</th>
       <th>Item</th>
-      ${showMetric ? '<th class="num">M&sup2;</th>' : ''}
-      <th class="num">Quantity</th>
-      <th>Unit</th>
+      <th class="num">M&sup2;</th>
+      <th class="num">ST / SF</th>
       <th class="num">Rate (RS)</th>
       <th class="num">Amount (RS)</th>
     </tr>

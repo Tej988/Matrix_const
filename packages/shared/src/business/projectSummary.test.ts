@@ -93,6 +93,53 @@ describe('a new project', () => {
   })
 })
 
+/**
+ * The normal case for this business: no agreed total, money follows measured
+ * work. RISKS.md R-01.
+ */
+describe('a project with no contract value', () => {
+  const noContract: SummarySources = (() => {
+    const { contractValuePaise: _omitted, ...rest } = tataSources
+    return rest
+  })()
+
+  const s = computeProjectSummary('proj-tata', noContract, BY, AT)
+
+  it('keeps every figure that does not depend on a contract', () => {
+    expect(s.totalBilledPaise).toBe(fromRupees(10_00_000))
+    expect(s.totalReceivedPaise).toBe(fromRupees(10_00_000))
+    expect(s.labourPayablePaise).toBe(fromRupees(50_000))
+    expect(s.netPositionPaise).toBe(fromRupees(5_55_000))
+  })
+
+  it('nulls the contract-derived figures rather than zeroing them', () => {
+    expect(s.contractValuePaise).toBeNull()
+    expect(s.unbilledBalancePaise).toBeNull()
+    expect(s.contractRemainingPaise).toBeNull()
+  })
+
+  it('leaves receivable as the one operative figure', () => {
+    const partlyPaid = computeProjectSummary(
+      'p',
+      { ...noContract, confirmedReceipts: [fromRupees(7_00_000)] },
+      BY,
+      AT,
+    )
+    expect(partlyPaid.receivablePaise).toBe(fromRupees(3_00_000))
+  })
+
+  it('starts a new project with no contract at all zeroes and no nonsense', () => {
+    const fresh = emptySummary('p-new', null, BY, AT)
+    expect(fresh.contractValuePaise).toBeNull()
+    expect(fresh.unbilledBalancePaise).toBeNull()
+    expect(fresh.receivablePaise).toBe(fromRupees(0))
+
+    // undefined is the same statement as null - a form that left the field
+    // blank must not produce a different document from one that cleared it.
+    expect(emptySummary('p-new', undefined, BY, AT)).toEqual(fresh)
+  })
+})
+
 describe('double-counting guards', () => {
   it('excludes labour-category expenses, which the caller must filter out', () => {
     // labourPaid already covers wages; nonLabourExpenses must not repeat them.
@@ -144,6 +191,42 @@ describe('drift detection - R-04', () => {
     expect(received?.stored).toBe(fromRupees(9_00_000))
     expect(received?.derived).toBe(fromRupees(10_00_000))
     expect(received?.differencePaise).toBe(fromRupees(1_00_000))
+  })
+
+  it('reports no drift when neither side has a contract value', () => {
+    // Both null. Comparing them as numbers would have made every
+    // measure-and-bill project permanently "out of sync" on the
+    // reconciliation screen.
+    const noContract = computeProjectSummary(
+      'p',
+      { ...tataSources, contractValuePaise: null },
+      BY,
+      AT,
+    )
+    expect(detectDrift({ ...noContract }, noContract)).toEqual([])
+  })
+
+  it('stays silent when a contract value was added or removed', () => {
+    // Only one side has a figure. There is no honest amount to print in the
+    // "correct" column, and the reconciliation write replaces the whole
+    // document anyway.
+    const withContract = computeProjectSummary('p', tataSources, BY, AT)
+    const withoutContract = computeProjectSummary(
+      'p',
+      { ...tataSources, contractValuePaise: null },
+      BY,
+      AT,
+    )
+    expect(detectDrift(withoutContract, withContract)).toEqual([])
+    expect(detectDrift(withContract, withoutContract)).toEqual([])
+  })
+
+  it('still catches a wrong contract value when both sides have one', () => {
+    const stale = { ...derived, contractValuePaise: fromRupees(18_00_000) }
+    const drift = detectDrift(stale, derived)
+    expect(drift).toHaveLength(1)
+    expect(drift[0]?.field).toBe('contractValuePaise')
+    expect(drift[0]?.differencePaise).toBe(fromRupees(50_000))
   })
 
   it('catches a single paisa, because a rounding bug starts that small', () => {

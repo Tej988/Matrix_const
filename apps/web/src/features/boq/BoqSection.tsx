@@ -51,7 +51,8 @@ export function BoqSection({
   contractValuePaise,
 }: {
   projectId: string
-  contractValuePaise: Paise
+  /** Absent on a job with no agreed total, which is most of them (R-01). */
+  contractValuePaise?: Paise | undefined
 }) {
   const { can } = useAuth()
   const { t } = useTranslation()
@@ -223,11 +224,16 @@ export function BoqSection({
         A rate card that does not add up to the contract value is not
         necessarily wrong - a contract can include unitemised work - but the
         owner should see the gap here rather than discover it at billing.
+
+        `coverage` is null when the project has no agreed total, and then
+        nothing renders: there is no second figure to reconcile against, and
+        the warning was comparing a real rate card to an invented contract
+        value ("totals ₹7,000 against a ₹50,00,000 contract" - R-01).
       */}
-      {showMoney && items.data.length > 0 && !coverage.matches && (
+      {showMoney && items.data.length > 0 && coverage && !coverage.matches && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
           The rate card totals <Amount paise={coverage.boqTotalPaise} />, but the contract value is{' '}
-          <Amount paise={contractValuePaise} /> &mdash; a difference of{' '}
+          <Amount paise={coverage.contractValuePaise} /> &mdash; a difference of{' '}
           <Amount paise={coverage.differencePaise} signed />.{' '}
           {coverage.differencePaise > 0
             ? 'Some contract work may not be itemised yet.'

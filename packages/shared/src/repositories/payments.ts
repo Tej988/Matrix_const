@@ -22,6 +22,7 @@ import type {
   PaymentMethod,
   WagePeriod,
 } from '@mc/types'
+import { calculateOutstanding } from '../business/outstanding'
 import { add, subtract } from '../money/index'
 import type { DocumentKind, StoredFileRef } from '../storage/index'
 
@@ -168,15 +169,27 @@ export function createPaymentRepository(db: Firestore) {
           input.amountPaise,
         )
         const billed = (data['totalBilledPaise'] as Paise) ?? (0 as Paise)
-        const contract = (data['contractValuePaise'] as Paise) ?? (0 as Paise)
         const cashOut = (data['cashOutPaise'] as Paise) ?? (0 as Paise)
+
+        /*
+         * Never `?? 0` on the contract value. Most projects have no agreed
+         * total (R-01) and a zero would make contractRemaining come back as
+         * minus everything received. Through the business function so this
+         * incremental write and the authoritative recompute agree.
+         */
+        const storedContract = data['contractValuePaise']
+        const outstanding = calculateOutstanding({
+          contractValuePaise: typeof storedContract === 'number' ? (storedContract as Paise) : null,
+          totalBilledPaise: billed,
+          totalReceivedPaise: received,
+        })
 
         tx.set(
           summaryRef,
           {
             totalReceivedPaise: received,
-            receivablePaise: subtract(billed, received),
-            contractRemainingPaise: subtract(contract, received),
+            receivablePaise: outstanding.receivablePaise,
+            contractRemainingPaise: outstanding.contractRemainingPaise,
             netPositionPaise: subtract(received, cashOut),
             computedAt: serverTimestamp(),
             computedBy: actor.uid,

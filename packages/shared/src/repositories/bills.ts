@@ -30,7 +30,18 @@ import {
   counterIdFor,
   formatBillNumber,
 } from '../business/billCalculator'
+import { calculateOutstanding } from '../business/outstanding'
 import { subtract, add } from '../money/index'
+
+/**
+ * The summary's contract value, or null when the project has no agreed total
+ * (R-01). Never defaulted to zero: a zero here would make `unbilledBalance`
+ * come back negative and read as "over-billed" on every measure-and-bill job.
+ */
+function storedContractValue(data: Record<string, unknown> | undefined): Paise | null {
+  const v = data?.['contractValuePaise']
+  return typeof v === 'number' ? (v as Paise) : null
+}
 
 function toBill(id: string, d: Record<string, unknown>): Bill {
   return {
@@ -217,16 +228,23 @@ export function createBillRepository(db: Firestore) {
         )
         const received =
           (summarySnap.data()?.['totalReceivedPaise'] as Paise | undefined) ?? (0 as Paise)
-        const contract =
-          (summarySnap.data()?.['contractValuePaise'] as Paise | undefined) ?? (0 as Paise)
+
+        // Through the business function rather than re-derived inline, so this
+        // incremental path cannot disagree with the authoritative recompute
+        // about what an absent contract value means.
+        const outstanding = calculateOutstanding({
+          contractValuePaise: storedContractValue(summarySnap.data()),
+          totalBilledPaise: totalBilled,
+          totalReceivedPaise: received,
+        })
 
         tx.set(
           summaryRef,
           {
             totalBilledPaise: totalBilled,
-            receivablePaise: subtract(totalBilled, received),
-            unbilledBalancePaise: subtract(contract, totalBilled),
-            contractRemainingPaise: subtract(contract, received),
+            receivablePaise: outstanding.receivablePaise,
+            unbilledBalancePaise: outstanding.unbilledBalancePaise,
+            contractRemainingPaise: outstanding.contractRemainingPaise,
             computedAt: serverTimestamp(),
             computedBy: actor.uid,
           },
@@ -303,15 +321,21 @@ export function createBillRepository(db: Firestore) {
         )
         const received =
           (summarySnap.data()?.['totalReceivedPaise'] as Paise | undefined) ?? (0 as Paise)
-        const contract =
-          (summarySnap.data()?.['contractValuePaise'] as Paise | undefined) ?? (0 as Paise)
+
+        const outstanding = calculateOutstanding({
+          contractValuePaise: storedContractValue(summarySnap.data()),
+          totalBilledPaise: totalBilled,
+          totalReceivedPaise: received,
+        })
 
         tx.set(
           summaryRef,
           {
             totalBilledPaise: totalBilled,
-            receivablePaise: subtract(totalBilled, received),
-            unbilledBalancePaise: subtract(contract, totalBilled),
+            receivablePaise: outstanding.receivablePaise,
+            // contractRemaining is contract - received, which a cancellation
+            // does not move.
+            unbilledBalancePaise: outstanding.unbilledBalancePaise,
             computedAt: serverTimestamp(),
             computedBy: actor.uid,
           },

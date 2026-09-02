@@ -67,11 +67,20 @@ function toProject(id: string, d: Record<string, unknown>): Project {
     code: (d['code'] as string) ?? '',
     clientId: (d['clientId'] as string) ?? '',
     clientName: (d['clientName'] as string) ?? '',
-    contractValuePaise: (d['contractValuePaise'] as Paise) ?? (0 as Paise),
     startDate: d['startDate'] as Project['startDate'],
     status: (d['status'] as ProjectStatus) ?? 'PLANNING',
     taxProfile: (d['taxProfile'] as Project['taxProfile']) ?? NO_TAX,
     ...defined({
+      /*
+       * Deliberately NOT defaulted to zero. A project with no agreed total
+       * (R-01) must arrive with the field absent, so every reader has to
+       * decide what to show; a zero would silently become "₹0 contract" and
+       * then "everything is still to bill".
+       */
+      contractValuePaise:
+        typeof d['contractValuePaise'] === 'number'
+          ? (d['contractValuePaise'] as Paise)
+          : undefined,
       siteAddress: d['siteAddress'] as string,
       city: d['city'] as string,
       state: d['state'] as string,
@@ -114,6 +123,11 @@ export function createClientRepository(db: Firestore) {
       })
     },
   }
+}
+
+/** A stored amount that is legitimately absent. Anything non-numeric is null. */
+function nullablePaise(v: unknown): Paise | null {
+  return typeof v === 'number' ? (v as Paise) : null
 }
 
 export function createProjectRepository(db: Firestore) {
@@ -165,6 +179,17 @@ export function createProjectRepository(db: Firestore) {
       return {
         ...(d as unknown as ProjectSummary),
         projectId,
+        /*
+         * The contract-derived trio is normalised at the boundary. A document
+         * written before this field existed, or one a merge never touched,
+         * comes back with it missing - and `undefined` reaching a formatter
+         * renders "NaN", while `null` is a case every caller now handles
+         * (R-01). This is the one place raw Firestore data becomes typed, so
+         * it is the one place to make the guarantee.
+         */
+        contractValuePaise: nullablePaise(d['contractValuePaise']),
+        unbilledBalancePaise: nullablePaise(d['unbilledBalancePaise']),
+        contractRemainingPaise: nullablePaise(d['contractRemainingPaise']),
         computedAt: (d['computedAt'] as { toDate?: () => Date })?.toDate?.() ?? EPOCH,
       }
     },
@@ -187,7 +212,6 @@ export function createProjectRepository(db: Firestore) {
         name: input.name,
         clientId: input.clientId,
         clientName: input.clientName,
-        contractValuePaise: input.contractValuePaise,
         status: input.status,
         taxProfile: input.taxProfile,
         createdAt: serverTimestamp(),
@@ -210,7 +234,9 @@ export function createProjectRepository(db: Firestore) {
         entityType: 'project',
         entityId: ref.id,
         projectId: ref.id,
-        after: { name: input.name, contractValuePaise: input.contractValuePaise },
+        // Firestore rejects undefined, and the audit trail should record
+        // "no contract value" as a fact rather than as a missing field.
+        after: { name: input.name, contractValuePaise: input.contractValuePaise ?? null },
         at: serverTimestamp(),
       })
 

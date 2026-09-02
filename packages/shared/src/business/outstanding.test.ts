@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { fromRupees } from '../money/index'
-import { calculateOutstanding, headlineAmount, isOverBilled, isOverPaid } from './outstanding'
+import {
+  calculateOutstanding,
+  hasContractFigures,
+  headlineAmount,
+  isOverBilled,
+  isOverPaid,
+} from './outstanding'
 
 /** Spec section 42, critical tests 4 and 5. */
 
@@ -51,6 +57,75 @@ describe('the R-01 ambiguity, made explicit', () => {
   })
 })
 
+/**
+ * The owner's own words: "in our work we dont have the total contract amount
+ * for a project - like for Tata project we dont have a fix amount, all our
+ * money depends on the work we have and their measurement and then bill
+ * calculate." This is the normal case, not the edge case.
+ */
+describe('a project with no agreed contract value', () => {
+  const billedAndPartlyPaid = {
+    totalBilledPaise: fromRupees(10_00_000),
+    totalReceivedPaise: fromRupees(7_00_000),
+  }
+
+  it('still answers "kitna baaki hai" - receivable needs no contract value', () => {
+    const r = calculateOutstanding(billedAndPartlyPaid)
+    expect(r.receivablePaise).toBe(fromRupees(3_00_000))
+  })
+
+  it('returns null, NOT zero, for the two contract-derived figures', () => {
+    const r = calculateOutstanding(billedAndPartlyPaid)
+    // Zero would read on screen as "nothing left to bill", which on a
+    // measure-and-bill job is a lie, not a rounding of the truth.
+    expect(r.unbilledBalancePaise).toBeNull()
+    expect(r.contractRemainingPaise).toBeNull()
+    expect(r.unbilledBalancePaise).not.toBe(fromRupees(0))
+  })
+
+  it('treats an explicit null the same as an omitted field', () => {
+    expect(calculateOutstanding({ ...billedAndPartlyPaid, contractValuePaise: null })).toEqual(
+      calculateOutstanding({ ...billedAndPartlyPaid, contractValuePaise: undefined }),
+    )
+    expect(calculateOutstanding({ ...billedAndPartlyPaid, contractValuePaise: null })).toEqual(
+      calculateOutstanding(billedAndPartlyPaid),
+    )
+  })
+
+  it('cannot be over-billed, because there is no ceiling to exceed', () => {
+    // Every bill raised IS the agreement on this kind of job.
+    const r = calculateOutstanding({
+      totalBilledPaise: fromRupees(90_00_000),
+      totalReceivedPaise: fromRupees(0),
+    })
+    expect(isOverBilled(r)).toBe(false)
+  })
+
+  it('still flags an advance, which is about billing and not about contract', () => {
+    const r = calculateOutstanding({
+      totalBilledPaise: fromRupees(2_00_000),
+      totalReceivedPaise: fromRupees(5_00_000),
+    })
+    expect(isOverPaid(r)).toBe(true)
+  })
+
+  it('reports through hasContractFigures so callers can branch once', () => {
+    expect(hasContractFigures(calculateOutstanding(billedAndPartlyPaid))).toBe(false)
+    expect(
+      hasContractFigures(
+        calculateOutstanding({ ...billedAndPartlyPaid, contractValuePaise: fromRupees(18_50_000) }),
+      ),
+    ).toBe(true)
+  })
+
+  it('gives no headline amount for a contract-derived figure', () => {
+    const r = calculateOutstanding(billedAndPartlyPaid)
+    expect(headlineAmount(r, 'receivable')).toBe(fromRupees(3_00_000))
+    expect(headlineAmount(r, 'unbilledBalance')).toBeNull()
+    expect(headlineAmount(r, 'contractRemaining')).toBeNull()
+  })
+})
+
 describe('the identity holds by construction', () => {
   it.each([
     [18_50_000, 10_00_000, 7_00_000],
@@ -63,6 +138,10 @@ describe('the identity holds by construction', () => {
       totalBilledPaise: fromRupees(billed),
       totalReceivedPaise: fromRupees(received),
     })
+    // The guard is the point: with a contract value present, both figures
+    // exist, and the type has just made the caller say so out loud.
+    expect(hasContractFigures(r)).toBe(true)
+    if (!hasContractFigures(r)) return
     expect(r.contractRemainingPaise).toBe(r.receivablePaise + r.unbilledBalancePaise)
     expect(r.contractRemainingPaise).toBe(fromRupees(contract - received))
   })

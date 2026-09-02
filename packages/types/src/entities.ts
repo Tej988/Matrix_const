@@ -80,7 +80,15 @@ export interface Project {
   siteAddress?: string
   city?: string
   state?: string
-  contractValuePaise: Paise
+  /**
+   * OPTIONAL, and usually absent. Most of this business's work has no agreed
+   * total: the client pays for whatever is measured and billed, month by
+   * month. A fixed-price contract does happen, so the concept stays - but
+   * requiring it forced a made-up number into the field, and every figure
+   * derived from it ("₹48,00,000 still to bill") was then fiction. See
+   * RISKS.md R-01.
+   */
+  contractValuePaise?: Paise
   startDate: DateKey
   expectedEndDate?: DateKey
   status: ProjectStatus
@@ -103,16 +111,26 @@ export interface Project {
  */
 export interface ProjectSummary {
   projectId: string
-  contractValuePaise: Paise
+  /** Null when the project has no agreed total - the usual case (R-01). */
+  contractValuePaise: Paise | null
   totalBilledPaise: Paise
   totalReceivedPaise: Paise
 
-  /** Billed but not yet paid. Money the client owes today. */
+  /**
+   * Billed but not yet paid. Money the client owes today. Always meaningful,
+   * because it needs no contract value - which is why it is the figure the
+   * project page leads with.
+   */
   receivablePaise: Paise
-  /** Contract value not yet billed. Work still to invoice. */
-  unbilledBalancePaise: Paise
-  /** Contract value not yet collected. receivable + unbilled. */
-  contractRemainingPaise: Paise
+  /**
+   * Contract value not yet billed. Work still to invoice.
+   *
+   * NULL, never zero, when there is no contract value. Zero would read as
+   * "nothing left to bill" on a job where the billing has barely started.
+   */
+  unbilledBalancePaise: Paise | null
+  /** Contract value not yet collected. receivable + unbilled. Null likewise. */
+  contractRemainingPaise: Paise | null
 
   approvedMeasuredPaise: Paise
   labourEarnedPaise: Paise

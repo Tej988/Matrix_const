@@ -69,6 +69,11 @@ service cloud.firestore {
       return v is int && v >= 0 && v < 100000000000;
     }
 
+    // A field that may be absent, but must be a valid paise amount if given.
+    function optionalPaise(data, field) {
+      return !(field in data) || isPaise(data[field]);
+    }
+
     function unchanged(field) {
       return request.resource.data[field] == resource.data[field];
     }
@@ -166,17 +171,21 @@ service cloud.firestore {
     match /projects/{projectId} {
       allow read: if canSeeProject(projectId);
 
+      // Most projects have no agreed total - the client pays for measured work
+      // (RISKS.md R-01) - so the field is optional. When it IS present it must
+      // still be a whole, non-negative count of paise: optional is not a hole
+      // in the validation, only in the requirement.
       allow create: if hasRole(['OWNER', 'ADMIN'])
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 0
                     && request.resource.data.clientId is string
-                    && isPaise(request.resource.data.contractValuePaise)
+                    && optionalPaise(request.resource.data, 'contractValuePaise')
                     && request.resource.data.status in
                        ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CLOSED'];
 
       allow update: if hasRole(['OWNER', 'ADMIN'])
                     && resource != null
-                    && isPaise(request.resource.data.contractValuePaise)
+                    && optionalPaise(request.resource.data, 'contractValuePaise')
                     && request.resource.data.status in
                        ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CLOSED']
                     // A project's client cannot change once bills reference it.

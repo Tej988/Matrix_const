@@ -20,6 +20,7 @@ export {
 
 export {
   calculateOutstanding,
+  hasContractFigures,
   headlineAmount,
   isOverBilled,
   isOverPaid,
@@ -38,6 +39,7 @@ export {
   contractCoverage,
   suggestCode,
   roundQty,
+  type ContractCoverage,
   type QuantityCheck,
   type QuantityInput,
   type QuantityRejection,

@@ -4,11 +4,20 @@ import type { BusinessProfile, DateKey } from '@mc/types'
 /**
  * Printable reports. Section 37 asks for PDF export.
  *
- * Rendered as self-contained HTML opened in a new window, where the browser's
- * own "Save as PDF" produces the file. Same reasoning as the bill and
- * quotation PDFs: no 400 KB library for a document printed a few times a
- * month, selectable text in the output, and Devanagari renders natively rather
- * than needing an embedded subsetted font with correct conjunct shaping (R-08).
+ * `renderReportHtml()` is the single definition of what a report looks like on
+ * paper, and it has two consumers:
+ *
+ *  - `openPrintWindow()` + `writeReport()` open it in a window where the
+ *    browser's own "Save as PDF" produces the file. Selectable text, no
+ *    library, and Devanagari shaped natively by the engine rather than by an
+ *    embedded subsetted font that gets conjuncts wrong (R-08).
+ *  - `pdfExport.renderHtmlToPdfBlob()` photographs that same HTML into a real
+ *    PDF binary the page can hand to WhatsApp. Image text rather than
+ *    selectable text, but correctly shaped for the same reason: the browser
+ *    lays it out before anything is rasterised.
+ *
+ * Both render the same markup, so they cannot disagree about what the report
+ * says.
  *
  * A report goes to a client or a bank the same way a bill does, so it carries
  * the same letterhead as QuotationPdf.ts - business name, tagline, address,
@@ -255,67 +264,43 @@ export function writeReport(win: Window, report: PrintableReport): void {
 // ---------------------------------------------------------------------------
 
 /**
- * The WhatsApp message.
+ * The short caption that travels WITH the PDF.
  *
- * WHY THIS IS TEXT AND NOT THE PDF. `wa.me/?text=` carries text only - it
- * cannot attach anything. Attaching a real document needs
- * `navigator.share({ files })`, which needs an actual PDF binary, and we do
- * not have one: every printer in this app emits printable HTML that the
- * browser turns into a PDF inside its own print dialog, and that file is never
- * handed back to the page.
+ * WHAT CHANGED, AND WHY. This used to be a text summary sent INSTEAD of the
+ * report, because a page had no PDF binary to attach: every printer here emits
+ * printable HTML that the browser turns into a PDF inside its own print
+ * dialog, and that file never comes back to the page. Drawing one with jsPDF
+ * was rejected, correctly - jsPDF has no OpenType shaping engine, so a
+ * labourer named रामकिशोर comes out of a wage sheet as reordered rubbish
+ * (R-08).
  *
- * Producing a binary would mean a PDF library, and the two candidates both
- * fail here. jsPDF has no OpenType shaping engine, so a labourer named
- * रामकिशोर comes out of the wage and attendance reports as reordered rubbish -
- * that is R-08, and it is why the printers are HTML in the first place. It
- * would also be a second renderer to keep in step with this one, which is the
- * exact drift the single report definition exists to prevent. Plus ~150 KB
- * gzipped on a ~300 KB app, against a 360 MB/day hosting budget (R-10).
- *
- * So the button sends the numbers, honestly labelled "summary", and the PDF
- * stays a save-then-attach step. The rows are deliberately NOT included: a
- * 60-row register would blow past what a URL and a chat bubble can carry, and
- * the header, the stats and the totals are what actually get read on a phone.
+ * pdfExport.ts now produces a real binary without reintroducing that bug: it
+ * photographs the browser's own rendering of `renderReportHtml()`, so the
+ * shaping is done by the engine before anything is rasterised. So the document
+ * itself is what gets sent, and this is only the covering note above it - the
+ * numbers live in the attachment where they belong, not retyped into a chat
+ * bubble that could disagree with it.
  */
-export function reportSummaryText(report: PrintableReport): string {
+export function reportShareCaption(report: PrintableReport): string {
   const { header } = report
-  const lines: string[] = []
-
   // *asterisks* are WhatsApp's bold. Harmless characters if it does not render.
-  lines.push(`*${header.businessName}*`)
-  if (header.tagline) lines.push(header.tagline)
-  if (header.gstin) lines.push(`GST NO. ${header.gstin}`)
-  if (header.phone) lines.push(`Mob: ${header.phone}`)
-
-  lines.push('', `*${header.title}*`)
+  const lines: string[] = [`*${header.businessName}*`, header.title]
   if (header.subtitle) lines.push(header.subtitle)
   if (header.ref) lines.push(`Ref: ${header.ref}`)
   lines.push(`Date: ${Dates.formatDateKey(header.date)}`)
-
-  if (report.stats?.length) {
-    lines.push('')
-    for (const s of report.stats) lines.push(`${s.label}: ${s.value}`)
-  }
-
-  // Totals are paired back to their column headers - "Billed: Rs 4,20,000"
-  // reads in a chat; a bare row of nine numbers does not. The label column
-  // itself ("Total") is skipped, as are the blank spacer cells.
-  const totals = report.totals
-  if (totals) {
-    const pairs = totals
-      .map((cell, i) => ({ label: report.columns[i] ?? '', value: cell }))
-      .filter((p, i) => i > 0 && p.value !== '' && p.label !== '')
-    if (pairs.length) {
-      lines.push('', '*Total*')
-      for (const p of pairs) lines.push(`${p.label}: ${p.value}`)
-    }
-  }
-
-  lines.push(
-    '',
-    `${report.rows.length} ${report.rows.length === 1 ? 'row' : 'rows'} in the report.`,
-  )
   return lines.join('\n')
+}
+
+/**
+ * The caption for the desktop fallback, where the file has been downloaded and
+ * the operator attaches it in the chat by hand.
+ *
+ * It names the file, so the operator can find it in their downloads and the
+ * recipient knows something is coming. It does NOT claim the PDF is attached -
+ * at the moment this text is typed into WhatsApp, it is not.
+ */
+export function reportAttachMessage(report: PrintableReport, pdfName: string): string {
+  return `${reportShareCaption(report)}\n\nSending the full report as a PDF: ${pdfName}`
 }
 
 /**
