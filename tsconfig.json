@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    /* Strictness. Non-negotiable in a financial system - see DECISIONS.md ADR-004. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["vitest/globals"],
+
+    "baseUrl": ".",
+    "paths": {
+      "@mc/types": ["packages/types/src/index.ts"],
+      "@mc/types/*": ["packages/types/src/*"],
+      "@mc/shared": ["packages/shared/src/index.ts"],
+      "@mc/shared/*": ["packages/shared/src/*"],
+      "@mc/validation": ["packages/validation/src/index.ts"],
+      "@mc/validation/*": ["packages/validation/src/*"]
+    }
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.tsx", "packages/**/*.ts", "*.ts"],
+  "exclude": ["**/dist", "**/node_modules", "apps/mobile"]
+}

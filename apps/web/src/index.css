@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+/*
+ * Spec section 28: the primary user is not a software engineer. Large touch
+ * targets and large readable text are accessibility requirements here, not
+ * stylistic preferences.
+ */
+@theme {
+  --font-sans:
+    'Inter', system-ui, -apple-system, 'Segoe UI', 'Noto Sans Devanagari', sans-serif;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  @apply bg-white text-base text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-100;
+}
+
+/* Never below 44px for anything tappable. */
+button,
+a[role='button'],
+[type='button'],
+[type='submit'] {
+  min-height: 44px;
+}

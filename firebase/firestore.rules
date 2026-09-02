@@ -1,0 +1,528 @@
+rules_version = '2';
+
+// Matrix Construction - Firestore Security Rules
+//
+// There is no server in this architecture (DECISIONS.md ADR-002), so this file
+// is the ENTIRE enforcement boundary. Treat it as production code: every change
+// needs a passing emulator test (TESTING.md section 4).
+//
+// Phase 1 scope: default deny, plus the users collection and its self-promotion
+// guard. Collections are added in the phase that introduces them.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userExists() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // A signed-in account with no users/{uid} document can read nothing and
+    // write nothing. That default-deny posture is what makes an accidental
+    // sign-in by a stranger harmless (SECURITY.md section 1).
+    function isActive() {
+      return userExists() && userDoc().status == 'ACTIVE';
+    }
+
+    // Note on emulator output: denials involving hasRole() log an
+    // "evaluation error" alongside the correct `false` verdict. That comes from
+    // the emulator's verbose diagnostic pass, which re-evaluates branches
+    // without short-circuiting and so exceeds the get() budget. The rule itself
+    // is sound - rules.test.ts exercises hasRole in BOTH directions (owner
+    // allowed, non-owner denied) and both pass. Do not "fix" it by loosening
+    // the condition.
+    function hasRole(roles) {
+      return isActive() && userDoc().role in roles;
+    }
+
+    // NOTE: the path literal below MUST stay on one line. Wrapping it across
+    // lines still compiles, but parses wrongly - it emits only a warning
+    // ("Invalid function name: exists") while the rule silently misbehaves.
+    function isMember(projectId) {
+      return exists(/databases/$(database)/documents/projectMembers/$(projectId + '_' + request.auth.uid));
+    }
+
+    /** Supervisors are confined to their own projects; everyone else is not. */
+    function canSeeProject(projectId) {
+      return hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT', 'VIEWER'])
+        || (hasRole(['SUPERVISOR']) && isMember(projectId));
+    }
+
+    /** Roles allowed to see money at all. Supervisors are deliberately absent. */
+    function canSeeMoney() {
+      return hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT', 'VIEWER']);
+    }
+
+    // Money is always an integer count of paise (ADR-004). A float here means
+    // a bug upstream, so reject it at the boundary.
+    function isPaise(v) {
+      return v is int && v >= 0 && v < 100000000000;
+    }
+
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ---------- users ----------
+
+    match /users/{uid} {
+      allow read: if isActive() || request.auth.uid == uid;
+
+      // Only an owner creates or removes user records. There is no Admin SDK on
+      // the Spark plan, so the FIRST owner document is created by hand in the
+      // Firebase Console - see SECURITY.md section 4.
+      allow create: if hasRole(['OWNER'])
+                    && request.resource.data.role in
+                       ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SUPERVISOR', 'VIEWER']
+                    && request.resource.data.status in ['ACTIVE', 'DISABLED'];
+
+      allow delete: if hasRole(['OWNER']);
+
+      // A user may edit their own profile but NEVER their own role or status.
+      // This is the single most important rule in the file: without it, any
+      // signed-in user writes role:'OWNER' to their own document and the whole
+      // permission model evaporates.
+      //
+      // The `resource != null` guard matters. Firestore evaluates a write
+      // against both create and update semantics, and on the create pass
+      // `resource` is null - so `unchanged()` would throw rather than return
+      // false. An evaluation error denies, so this was never a security hole,
+      // but a rule that throws is a rule that can misfire in the allow
+      // direction later. Guard it and it evaluates cleanly.
+      allow update: if resource != null && (
+        (
+          request.auth.uid == uid
+          && unchanged('role')
+          && unchanged('status')
+          && changedKeys().hasOnly(['displayName', 'phone', 'locale', 'photoUrl', 'updatedAt'])
+        ) || (
+          hasRole(['OWNER'])
+          && request.resource.data.role in
+             ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SUPERVISOR', 'VIEWER']
+          && request.resource.data.status in ['ACTIVE', 'DISABLED']
+          // An owner may not demote or disable THEMSELVES. On the sole-owner
+          // account that is an unrecoverable lockout: no server exists to undo
+          // it, and user:manage would be permanently unreachable. Another owner
+          // can still do it, and so can the Firebase Console - so nothing
+          // legitimate is blocked, only the footgun.
+          && (
+            uid != request.auth.uid
+            || (request.resource.data.role == 'OWNER'
+                && request.resource.data.status == 'ACTIVE')
+          )
+        )
+      );
+    }
+
+    // ---------- audit log ----------
+
+    match /auditLogs/{logId} {
+      allow create: if isActive()
+                    && resource == null
+                    && request.resource.data.userId == request.auth.uid;
+      allow read: if hasRole(['OWNER', 'ADMIN']);
+      // Append-only. No role may rewrite history, including OWNER (ADR-007).
+      allow update, delete: if false;
+    }
+
+    // ---------- settings ----------
+
+    match /settings/{docId} {
+      allow read: if isActive();
+      allow create, update: if hasRole(['OWNER']);
+      allow delete: if false;
+    }
+
+    // ---------- clients ----------
+
+    match /clients/{clientId} {
+      // Everyone with access reads clients - a supervisor needs the site
+      // contact. Client records carry no money, so no role gate on read.
+      allow read: if isActive();
+      allow create, update: if hasRole(['OWNER', 'ADMIN'])
+                            && request.resource.data.name is string
+                            && request.resource.data.name.size() > 0
+                            && request.resource.data.status in ['ACTIVE', 'INACTIVE'];
+      // Clients are referenced by projects and bills. Deactivate, never delete.
+      allow delete: if false;
+    }
+
+    // ---------- projects ----------
+
+    match /projects/{projectId} {
+      allow read: if canSeeProject(projectId);
+
+      allow create: if hasRole(['OWNER', 'ADMIN'])
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.clientId is string
+                    && isPaise(request.resource.data.contractValuePaise)
+                    && request.resource.data.status in
+                       ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CLOSED'];
+
+      allow update: if hasRole(['OWNER', 'ADMIN'])
+                    && resource != null
+                    && isPaise(request.resource.data.contractValuePaise)
+                    && request.resource.data.status in
+                       ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CLOSED']
+                    // A project's client cannot change once bills reference it.
+                    && unchanged('clientId');
+
+      allow delete: if false;
+
+      // ---------- project summary ----------
+      // The denormalised money view. Supervisors must not read it - it is the
+      // one place every financial figure for a project sits together.
+      match /summary/{docId} {
+        allow read: if canSeeMoney() && canSeeProject(projectId);
+        // Written by the same client transaction that moves money (R-02), and
+        // rewritten wholesale by the owner's reconciliation routine (R-04).
+        allow write: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT']);
+      }
+    }
+
+    // ---------- BOQ / rate card ----------
+
+    match /boqItems/{itemId} {
+      // A supervisor needs the rate card to enter measurements against it, and
+      // it is scoped to their own projects like everything else.
+      allow read: if canSeeProject(resource.data.projectId);
+
+      allow create: if hasRole(['OWNER', 'ADMIN'])
+                    && request.resource.data.projectId is string
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.contractQty is number
+                    && request.resource.data.contractQty > 0
+                    && isPaise(request.resource.data.ratePaise)
+                    && isPaise(request.resource.data.contractAmountPaise)
+                    // A new item has measured nothing and billed nothing.
+                    && request.resource.data.completedQty == 0
+                    && request.resource.data.billedQty == 0;
+
+      allow update: if hasRole(['OWNER', 'ADMIN'])
+                    && resource != null
+                    && unchanged('projectId')
+                    && isPaise(request.resource.data.ratePaise)
+                    && isPaise(request.resource.data.contractAmountPaise)
+                    && request.resource.data.contractQty is number
+                    && request.resource.data.contractQty > 0
+                    // completedQty and billedQty move only through the
+                    // measurement-approval and billing transactions, never
+                    // through an edit of the rate card itself (R-13).
+                    && unchanged('completedQty')
+                    && unchanged('billedQty');
+
+      // Referenced by measurements and bill lines. Close it, never delete it.
+      allow delete: if false;
+    }
+
+    // ---------- measurements ----------
+
+    match /measurements/{measurementId} {
+      allow read: if canSeeProject(resource.data.projectId);
+
+      // A supervisor enters measurements for their own projects.
+      allow create: if (hasRole(['OWNER', 'ADMIN'])
+                        || (hasRole(['SUPERVISOR'])
+                            && isMember(request.resource.data.projectId)))
+                    && request.resource.data.projectId is string
+                    && isPaise(request.resource.data.totalAmountPaise)
+                    // Everything starts as a draft. Nothing is born approved.
+                    && request.resource.data.status == 'DRAFT'
+                    && request.resource.data.enteredBy == request.auth.uid;
+
+      allow update: if resource != null
+                    && unchanged('projectId')
+                    && (
+                      // Approve or reject: OWNER/ADMIN only, and only from
+                      // SUBMITTED. This is the separation of duty that makes
+                      // the review step meaningful - a supervisor cannot sign
+                      // off their own work.
+                      (
+                        hasRole(['OWNER', 'ADMIN'])
+                        && resource.data.status == 'SUBMITTED'
+                        && request.resource.data.status in ['APPROVED', 'REJECTED', 'DRAFT']
+                      )
+                      // Submit, or pull a rejected sheet back to draft.
+                      || (
+                        (hasRole(['OWNER', 'ADMIN'])
+                         || (hasRole(['SUPERVISOR']) && isMember(resource.data.projectId)))
+                        && resource.data.status in ['DRAFT', 'REJECTED']
+                        && request.resource.data.status in ['DRAFT', 'SUBMITTED']
+                      )
+                      // Billing stamps billId onto an approved sheet.
+                      || (
+                        hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                        && resource.data.status == 'APPROVED'
+                        && request.resource.data.status == 'APPROVED'
+                      )
+                    );
+
+      // An approved measurement may be referenced by a bill (ADR-007).
+      allow delete: if resource != null
+                    && resource.data.status in ['DRAFT', 'REJECTED']
+                    && hasRole(['OWNER', 'ADMIN']);
+
+      match /items/{itemId} {
+        allow read: if isActive();
+        allow write: if hasRole(['OWNER', 'ADMIN', 'SUPERVISOR']);
+      }
+    }
+
+    // ---------- bills ----------
+
+    match /bills/{billId} {
+      // Bills are money. Supervisors never see them.
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+
+      allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && request.resource.data.projectId is string
+                    && request.resource.data.billNumber is string
+                    && request.resource.data.billNumber.size() > 0
+                    && isPaise(request.resource.data.subtotalPaise)
+                    && isPaise(request.resource.data.netAmountPaise)
+                    // A bill is born with nothing received against it. Payment
+                    // status is derived from the payment ledger, never asserted.
+                    && request.resource.data.amountReceivedPaise == 0
+                    && request.resource.data.status in ['DRAFT', 'GENERATED'];
+
+      allow update: if resource != null
+                    && unchanged('projectId')
+                    && unchanged('billNumber')
+                    && unchanged('subtotalPaise')
+                    && unchanged('netAmountPaise')
+                    && (
+                      // Cancellation is OWNER/ADMIN only (spec section 20).
+                      (hasRole(['OWNER', 'ADMIN'])
+                       && request.resource.data.status == 'CANCELLED')
+                      // Everything else - send, record receipt - is the money roles.
+                      || (hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                          && resource.data.status != 'CANCELLED'
+                          && request.resource.data.status != 'CANCELLED')
+                    );
+
+      // Never. A bill is cancelled and reversed, never removed (ADR-007).
+      allow delete: if false;
+
+      match /items/{itemId} {
+        allow read: if canSeeMoney();
+        // Frozen at generation. A later rate change must not restate an
+        // issued bill, so lines are written once and never updated.
+        allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT']);
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- bill number counters ----------
+
+    match /counters/{counterId} {
+      allow read: if isActive();
+      // Only ever incremented, inside the bill-generation transaction (R-11).
+      allow write: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT']);
+    }
+
+    // ---------- labour ----------
+
+    match /labour/{labourId} {
+      // Supervisors need the roster to mark attendance.
+      allow read: if isActive();
+      allow create, update: if hasRole(['OWNER', 'ADMIN'])
+                            && request.resource.data.name is string
+                            && request.resource.data.name.size() > 0
+                            && isPaise(request.resource.data.defaultDailyWagePaise)
+                            && request.resource.data.status in ['ACTIVE', 'INACTIVE'];
+      // Attendance and wage history reference labourers. Deactivate instead.
+      allow delete: if false;
+    }
+
+    match /labourAssignments/{assignmentId} {
+      allow read: if isActive();
+      allow create, update: if hasRole(['OWNER', 'ADMIN'])
+                            && isPaise(request.resource.data.dailyRatePaise)
+                            && assignmentId == request.resource.data.projectId + '_' + request.resource.data.labourId;
+      allow delete: if hasRole(['OWNER', 'ADMIN']);
+    }
+
+    // ---------- attendance ----------
+
+    match /attendance/{recordId} {
+      allow read: if canSeeProject(resource.data.projectId);
+
+      // The document ID must equal projectId_labourId_dateKey (ADR-006).
+      // That is what makes a duplicate physically the same document, and an
+      // offline replay idempotent. Enforcing it here means a client cannot
+      // sidestep duplicate-prevention by choosing its own ID.
+      allow create: if (hasRole(['OWNER', 'ADMIN'])
+                        || (hasRole(['SUPERVISOR'])
+                            && isMember(request.resource.data.projectId)))
+                    && recordId == request.resource.data.projectId + '_'
+                                   + request.resource.data.labourId + '_'
+                                   + request.resource.data.dateKey
+                    && request.resource.data.status in
+                       ['PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE', 'HOLIDAY']
+                    && isPaise(request.resource.data.dailyRatePaise)
+                    && request.resource.data.markedBy == request.auth.uid;
+
+      // Edits are allowed - a supervisor corrects a mistake the same day - but
+      // the identity fields are pinned so an edit cannot become a different
+      // person's day.
+      allow update: if (hasRole(['OWNER', 'ADMIN'])
+                        || (hasRole(['SUPERVISOR']) && isMember(resource.data.projectId)))
+                    && unchanged('projectId')
+                    && unchanged('labourId')
+                    && unchanged('dateKey')
+                    && request.resource.data.status in
+                       ['PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE', 'HOLIDAY']
+                    // Once a wage period is locked the record is frozen: it has
+                    // been paid against, and changing it would silently restate
+                    // a settled payment.
+                    && !('wagePeriodId' in resource.data);
+
+      allow delete: if hasRole(['OWNER', 'ADMIN'])
+                    && !('wagePeriodId' in resource.data);
+    }
+
+    // ---------- money: shared shape ----------
+    // Every financial collection follows the same pattern:
+    //   role gate -> field validation -> immutability of identity -> no delete.
+    // Amount and project are frozen at creation, so a "correction" cannot
+    // quietly become a different payment; it must be a reversal (ADR-007).
+
+    match /clientPayments/{paymentId} {
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+
+      allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && isPaise(request.resource.data.amountPaise)
+                    && request.resource.data.amountPaise > 0
+                    && request.resource.data.idempotencyKey is string
+                    && request.resource.data.idempotencyKey.size() > 0
+                    && request.resource.data.status in
+                       ['PENDING', 'SUGGESTED', 'CONFIRMED']
+                    && request.resource.data.createdBy == request.auth.uid;
+
+      allow update: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && resource != null
+                    && unchanged('projectId')
+                    && unchanged('amountPaise')
+                    && unchanged('idempotencyKey')
+                    && unchanged('createdBy');
+
+      allow delete: if false;
+    }
+
+    match /labourPayments/{paymentId} {
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+
+      allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && isPaise(request.resource.data.amountPaise)
+                    && request.resource.data.amountPaise > 0
+                    && request.resource.data.idempotencyKey is string
+                    && request.resource.data.idempotencyKey.size() > 0
+                    && request.resource.data.status in ['PENDING', 'CONFIRMED']
+                    && request.resource.data.createdBy == request.auth.uid;
+
+      allow update: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && resource != null
+                    && unchanged('projectId')
+                    && unchanged('labourId')
+                    && unchanged('amountPaise')
+                    && unchanged('idempotencyKey');
+
+      allow delete: if false;
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+
+      // A supervisor may RECORD a site expense but cannot read the ledger -
+      // they need to log a tempo hire without seeing the project's finances.
+      allow create: if (hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                        || (hasRole(['SUPERVISOR'])
+                            && isMember(request.resource.data.projectId)))
+                    && isPaise(request.resource.data.amountPaise)
+                    && request.resource.data.amountPaise > 0
+                    && request.resource.data.description is string
+                    && request.resource.data.description.size() > 0
+                    && request.resource.data.createdBy == request.auth.uid;
+
+      allow update: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && resource != null
+                    && unchanged('projectId')
+                    && unchanged('amountPaise');
+
+      allow delete: if false;
+    }
+
+    match /wagePeriods/{periodId} {
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+      allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && isPaise(request.resource.data.earnedAmountPaise)
+                    && request.resource.data.status in ['DRAFT', 'LOCKED'];
+      // A locked period is settled - it has been paid against.
+      allow update: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && resource != null
+                    && resource.data.status != 'LOCKED';
+      allow delete: if false;
+    }
+
+    // ---------- ledger ----------
+
+    match /transactions/{transactionId} {
+      allow read: if canSeeMoney() && canSeeProject(resource.data.projectId);
+      allow create: if hasRole(['OWNER', 'ADMIN', 'ACCOUNTANT'])
+                    && isPaise(request.resource.data.amountPaise)
+                    && request.resource.data.createdBy == request.auth.uid;
+      // Append-only. A correction is a new opposing entry, never an edit
+      // (section 18, ADR-007).
+      allow update, delete: if false;
+    }
+
+    // ---------- documents ----------
+
+    match /documents/{documentId} {
+      allow read: if isActive();
+      allow create, update: if isActive()
+                            && request.resource.data.provider in
+                               ['GOOGLE_DRIVE', 'FIREBASE_STORAGE'];
+      allow delete: if hasRole(['OWNER', 'ADMIN']);
+    }
+
+    // ---------- project membership ----------
+
+    match /projectMembers/{memberId} {
+      allow read: if isActive();
+      allow create, update: if hasRole(['OWNER', 'ADMIN'])
+                            && request.resource.data.projectId is string
+                            && request.resource.data.uid is string
+                            // The ID must be projectId_uid or isMember() would
+                            // look up a document that does not exist.
+                            && memberId == request.resource.data.projectId + '_' + request.resource.data.uid;
+      // Removing someone from a project is a real operation, unlike deleting
+      // financial history - this is the one delete the system allows.
+      allow delete: if hasRole(['OWNER', 'ADMIN']);
+    }
+
+    // ---------- default deny ----------
+    // Anything not matched above is denied. Collections are opened up in the
+    // phase that introduces them, each with its own tests.
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
