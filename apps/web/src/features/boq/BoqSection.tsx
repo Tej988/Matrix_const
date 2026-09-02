@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createBoqRepository } from '@mc/shared/repositories/boq'
-import { Money, boqTotals, contractCoverage, remainingQty, completionPercent, suggestCode } from '@mc/shared'
+import {
+  Money,
+  boqTotals,
+  contractCoverage,
+  remainingQty,
+  completionPercent,
+  suggestCode,
+} from '@mc/shared'
 import { UNITS, UNIT_LABELS, type Paise, type Unit } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount, AmountWithWords } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
+import { BulkBoqForm } from './BulkBoqForm'
 
 /**
  * The rate card. Section 5 - every rate is configurable per project, and none
@@ -20,8 +29,11 @@ export function BoqSection({
   contractValuePaise: Paise
 }) {
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createBoqRepository(db), [])
-  const [adding, setAdding] = useState(false)
+  /* Two ways in, one at a time: a form and a paste area open together is just
+     two places to lose your work. */
+  const [mode, setMode] = useState<'none' | 'single' | 'bulk'>('none')
 
   const items = useQuery({
     queryKey: ['boq', projectId],
@@ -30,7 +42,9 @@ export function BoqSection({
 
   if (items.isPending) return <p className="text-slate-500">Loading rate card…</p>
   if (items.isError) {
-    return <QueryError error={items.error} onRetry={() => void items.refetch()} what="the rate card" />
+    return (
+      <QueryError error={items.error} onRetry={() => void items.refetch()} what="the rate card" />
+    )
   }
 
   const totals = boqTotals(items.data)
@@ -50,22 +64,43 @@ export function BoqSection({
           </p>
         </div>
         {can('boq:write') && (
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
-          >
-            {adding ? 'Cancel' : 'Add work item'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {/* A real BOQ is dozens of lines. The paste route is offered beside
+                the form, not buried behind it. */}
+            <button
+              type="button"
+              onClick={() => setMode((m) => (m === 'bulk' ? 'none' : 'bulk'))}
+              className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
+            >
+              {mode === 'bulk' ? t('cancel') : t('pasteFromSheet')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode((m) => (m === 'single' ? 'none' : 'single'))}
+              className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+            >
+              {mode === 'single' ? t('cancel') : t('addWorkItem')}
+            </button>
+          </div>
         )}
       </div>
 
-      {adding && (
+      {mode === 'single' && (
         <AddBoqItemForm
           projectId={projectId}
           existingCodes={items.data.map((i) => i.code)}
           nextSortOrder={items.data.length}
-          onDone={() => setAdding(false)}
+          onDone={() => setMode('none')}
+        />
+      )}
+
+      {mode === 'bulk' && (
+        <BulkBoqForm
+          projectId={projectId}
+          existingCodes={items.data.map((i) => i.code)}
+          existingNames={items.data.map((i) => i.name)}
+          nextSortOrder={items.data.length}
+          onDone={() => setMode('none')}
         />
       )}
 
@@ -115,9 +150,7 @@ export function BoqSection({
                   )}
                   <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                     {i.completedQty.toLocaleString('en-IN')}
-                    <span className="ml-1 text-xs text-slate-400">
-                      {completionPercent(i)}%
-                    </span>
+                    <span className="ml-1 text-xs text-slate-400">{completionPercent(i)}%</span>
                   </td>
                   <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                     {remainingQty(i).toLocaleString('en-IN')}
@@ -151,8 +184,8 @@ export function BoqSection({
       */}
       {showMoney && items.data.length > 0 && !coverage.matches && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          The rate card totals <Amount paise={coverage.boqTotalPaise} />, but the contract value
-          is <Amount paise={contractValuePaise} /> &mdash; a difference of{' '}
+          The rate card totals <Amount paise={coverage.boqTotalPaise} />, but the contract value is{' '}
+          <Amount paise={contractValuePaise} /> &mdash; a difference of{' '}
           <Amount paise={coverage.differencePaise} signed />.{' '}
           {coverage.differencePaise > 0
             ? 'Some contract work may not be itemised yet.'

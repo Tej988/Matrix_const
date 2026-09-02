@@ -92,7 +92,9 @@ describe('arithmetic', () => {
     expect(compareDateKeys(dateKey('2026-08-01'), dateKey('2026-08-02'))).toBe(-1)
     expect(compareDateKeys(dateKey('2026-08-02'), dateKey('2026-08-02'))).toBe(0)
     expect(isWithin(dateKey('2026-08-15'), dateKey('2026-08-01'), dateKey('2026-08-31'))).toBe(true)
-    expect(isWithin(dateKey('2026-09-01'), dateKey('2026-08-01'), dateKey('2026-08-31'))).toBe(false)
+    expect(isWithin(dateKey('2026-09-01'), dateKey('2026-08-01'), dateKey('2026-08-31'))).toBe(
+      false,
+    )
   })
 })
 

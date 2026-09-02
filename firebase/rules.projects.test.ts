@@ -181,9 +181,7 @@ describe('project writes', () => {
 
   it('refuses to move a project to a different client', async () => {
     // Bills already reference the client; repointing would rewrite history.
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'projects', PROJ_A), { clientId: 'client-other' }),
-    )
+    await assertFails(updateDoc(doc(as(OWNER), 'projects', PROJ_A), { clientId: 'client-other' }))
   })
 
   it('allows other project edits', async () => {

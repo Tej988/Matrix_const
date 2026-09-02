@@ -23,19 +23,19 @@ The full money chain works end to end: client → project → rate card → meas
 
 Read in this order.
 
-| | Document | What it settles |
-|---|---|---|
-| 1 | [DECISIONS.md](docs/DECISIONS.md) | The nine binding decisions and eight standing assumptions. **Start here** — everything else is downstream. |
-| 2 | [RISKS.md](docs/RISKS.md) | Fifteen ambiguities and technical risks, ranked. Including a contradiction in the spec itself. |
-| 3 | [PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md) | Users, functional requirements traced to the spec, what is out of scope. |
-| 4 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System shape, stack, folder structure, layering, offline strategy. |
-| 5 | [DATABASE.md](docs/DATABASE.md) | Firestore model, ER diagram, every collection, indexes. |
-| 6 | [API_AND_SERVICES.md](docs/API_AND_SERVICES.md) | TypeScript contracts between layers. |
-| 7 | [SECURITY.md](docs/SECURITY.md) | Roles, Security Rules, threat model, the Drive offboarding gap. |
-| 8 | [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md) | Tool registry and safety model. Designed now, built Phase 12. |
-| 9 | [TESTING.md](docs/TESTING.md) | The thirteen critical tests and the per-phase gate. |
-| 10 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Firebase and Drive setup, CI/CD, cost control. |
-| 11 | [PHASES.md](docs/PHASES.md) | The sixteen phases and what closes each one. |
+|     | Document                                                | What it settles                                                                                            |
+| --- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| 1   | [DECISIONS.md](docs/DECISIONS.md)                       | The nine binding decisions and eight standing assumptions. **Start here** — everything else is downstream. |
+| 2   | [RISKS.md](docs/RISKS.md)                               | Fifteen ambiguities and technical risks, ranked. Including a contradiction in the spec itself.             |
+| 3   | [PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md) | Users, functional requirements traced to the spec, what is out of scope.                                   |
+| 4   | [ARCHITECTURE.md](docs/ARCHITECTURE.md)                 | System shape, stack, folder structure, layering, offline strategy.                                         |
+| 5   | [DATABASE.md](docs/DATABASE.md)                         | Firestore model, ER diagram, every collection, indexes.                                                    |
+| 6   | [API_AND_SERVICES.md](docs/API_AND_SERVICES.md)         | TypeScript contracts between layers.                                                                       |
+| 7   | [SECURITY.md](docs/SECURITY.md)                         | Roles, Security Rules, threat model, the Drive offboarding gap.                                            |
+| 8   | [AI_ARCHITECTURE.md](docs/AI_ARCHITECTURE.md)           | Tool registry and safety model. Designed now, built Phase 12.                                              |
+| 9   | [TESTING.md](docs/TESTING.md)                           | The thirteen critical tests and the per-phase gate.                                                        |
+| 10  | [DEPLOYMENT.md](docs/DEPLOYMENT.md)                     | Firebase and Drive setup, CI/CD, cost control.                                                             |
+| 11  | [PHASES.md](docs/PHASES.md)                             | The sixteen phases and what closes each one.                                                               |
 
 The original brief is [prompt.md](prompt.md).
 
@@ -71,12 +71,12 @@ be derived from contract value — but §17's own worked example does exactly th
 billed and ₹10 lakh received, the receivable is ₹0; the ₹8,50,000 is unbilled contract
 balance. Both are real numbers, they mean different things, and the dashboard leads with one.
 
-So: when your father asks *"Tata project mein kitna baaki hai?"* — does he mean work left to
+So: when your father asks _"Tata project mein kitna baaki hai?"_ — does he mean work left to
 bill, or money invoiced and unpaid? The model keeps all three quantities separate either way;
 this decides which one leads.
 
 **Are you the contractor or a subcontractor?** (A3). I have assumed the business raises bills
-*to* Tata Project Limited, with Stonede / Rakesh Rao as the client contact. If it is the
+_to_ Tata Project Limited, with Stonede / Rakesh Rao as the client contact. If it is the
 other way round, the receivables model inverts.
 
 Neither blocked the build. **R-01 is resolved in the model rather than by choosing**: all

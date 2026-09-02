@@ -6,7 +6,7 @@ Spec §57 step 10, and §30–§34, §51–§52.
 — a browser-shipped provider key is readable by anyone who opens devtools, and §47 says stop
 and document rather than leak. So the seam is designed and the code is not written.
 
-Nothing here is speculative architecture for its own sake. Getting the *shape* right now
+Nothing here is speculative architecture for its own sake. Getting the _shape_ right now
 costs nothing and prevents Phases 1–11 from growing code paths the assistant cannot reach.
 
 ---
@@ -49,27 +49,27 @@ interface AiTool<P, R> {
   params: ZodSchema<P>
   requiredRoles: Role[]
   projectScoped: boolean
-  mutating: false                       // read tools only — see §4
+  mutating: false // read tools only — see §4
   execute(params: P, ctx: AuthContext): Promise<R>
 }
 ```
 
 Read tools, from §31:
 
-| Tool | Returns |
-|---|---|
-| `getProjects` | id, name, client, status — no financials for SUPERVISOR |
-| `getProjectDetails` | header + contract value |
+| Tool                         | Returns                                                        |
+| ---------------------------- | -------------------------------------------------------------- |
+| `getProjects`                | id, name, client, status — no financials for SUPERVISOR        |
+| `getProjectDetails`          | header + contract value                                        |
 | `getProjectFinancialSummary` | the summary document, **all three R-01 quantities separately** |
-| `getClientOutstanding` | receivable and unbilled balance, labelled distinctly |
-| `getClientPaymentHistory` | paginated, confirmed only |
-| `getTodayAttendance` | present / absent / half-day counts and names |
-| `getLabourPayable` | earned, paid, payable per labourer |
-| `getLabourPaymentHistory` | paginated |
-| `getMonthlyMeasurements` | approved measurements for a period |
-| `getBillDetails` | a bill and its frozen line items |
-| `getProjectExpenses` | grouped by category |
-| `getCashFlow` | in / out by period |
+| `getClientOutstanding`       | receivable and unbilled balance, labelled distinctly           |
+| `getClientPaymentHistory`    | paginated, confirmed only                                      |
+| `getTodayAttendance`         | present / absent / half-day counts and names                   |
+| `getLabourPayable`           | earned, paid, payable per labourer                             |
+| `getLabourPaymentHistory`    | paginated                                                      |
+| `getMonthlyMeasurements`     | approved measurements for a period                             |
+| `getBillDetails`             | a bill and its frozen line items                               |
+| `getProjectExpenses`         | grouped by category                                            |
+| `getCashFlow`                | in / out by period                                             |
 
 Every one is an allow-listed function with a Zod-validated signature. The model **cannot
 construct a query** (§31) — it selects a tool by name and supplies typed parameters, and
@@ -107,8 +107,8 @@ Instead, a write-intent tool returns a **proposal**:
 interface WriteProposal {
   kind: 'LABOUR_PAYMENT' | 'EXPENSE' | 'ATTENDANCE_MARK'
   summary: { en: string; hi: string }
-  payload: unknown              // validated against the same Zod schema the form uses
-  warnings: string[]            // "exceeds payable amount by ₹2,000"
+  payload: unknown // validated against the same Zod schema the form uses
+  warnings: string[] // "exceeds payable amount by ₹2,000"
 }
 ```
 
@@ -116,7 +116,7 @@ The UI renders it as the ordinary confirmation dialog — the same component the
 uses, with the same validation:
 
 > Ramesh ke liye ₹8,000 ka payment record ready hai. Confirm karna chahte hain?
-> **[ Confirm ]  [ Cancel ]**
+> **[ Confirm ] [ Cancel ]**
 
 On Confirm, the **application** calls `recordLabourPayment`. The model is not in that path.
 It proposed; a human decided; deterministic code executed. §32 calls this mandatory, and the
@@ -128,18 +128,21 @@ architecture makes it structural rather than procedural.
 
 ```ts
 interface AiProvider {
-  complete(input: { messages: Message[]; tools: ToolSchema[]; locale: 'en' | 'hi' }):
-    Promise<{ text?: string; toolCalls?: ToolCall[] }>
+  complete(input: {
+    messages: Message[]
+    tools: ToolSchema[]
+    locale: 'en' | 'hi'
+  }): Promise<{ text?: string; toolCalls?: ToolCall[] }>
 }
 ```
 
 Deferring the provider choice costs nothing and keeps options open:
 
-| Option | Requires | Note |
-|---|---|---|
+| Option                     | Requires  | Note                                             |
+| -------------------------- | --------- | ------------------------------------------------ |
 | Firebase AI Logic (Gemini) | **Blaze** | Cleanest — App Check-gated, no key in the bundle |
-| Cloud Function proxy | **Blaze** | Any provider, key stays server-side |
-| Direct browser call | — | ✗ **Rejected.** Leaks the key. §47 |
+| Cloud Function proxy       | **Blaze** | Any provider, key stays server-side              |
+| Direct browser call        | —         | ✗ **Rejected.** Leaks the key. §47               |
 
 Two of three need Blaze; the third is unacceptable. That is the whole of ADR-002's AI
 deferral in one table.
@@ -149,7 +152,7 @@ deferral in one table.
 ## 6. Language — §29, §33
 
 Hindi, English, and **Hinglish**, which is what §33's examples actually are: Hindi grammar
-with English nouns. *"Tata project mein kitna paisa baaki hai?"* is neither `hi-IN` nor
+with English nouns. _"Tata project mein kitna paisa baaki hai?"_ is neither `hi-IN` nor
 `en-IN` cleanly, and it is the realistic input.
 
 Intent classification therefore runs language-agnostically, on the whole utterance, rather
@@ -158,7 +161,7 @@ than after a detect-then-translate step that would mangle proper nouns like "Sto
 in Indian grouping (₹8,50,000) in both languages, because that is how the figure is spoken
 either way.
 
-**R-01 surfaces directly here.** When your father asks *"kitna baaki hai?"*, the answer
+**R-01 surfaces directly here.** When your father asks _"kitna baaki hai?"_, the answer
 depends on whether he means invoiced-and-unpaid or contract-left-to-bill. Until that is
 settled, the assistant states both:
 
@@ -187,16 +190,16 @@ input device, and the product cannot depend on one.
 
 ## 8. What the AI must never do — §52
 
-| Never | Enforced by |
-|---|---|
-| Invent a financial figure | All numbers originate in `business/`; empty tool result → "not available" |
-| Write a financial record | No write tools exist; proposals require human Confirm |
-| Delete anything | No delete path anywhere (ADR-007) |
-| Bypass authorisation | Role checks at the tool boundary **and** in Security Rules |
-| Read another project's data | `projectScoped` tools validate membership |
-| Execute an arbitrary query | Allow-listed tools with Zod-typed parameters only |
+| Never                             | Enforced by                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| Invent a financial figure         | All numbers originate in `business/`; empty tool result → "not available"      |
+| Write a financial record          | No write tools exist; proposals require human Confirm                          |
+| Delete anything                   | No delete path anywhere (ADR-007)                                              |
+| Bypass authorisation              | Role checks at the tool boundary **and** in Security Rules                     |
+| Read another project's data       | `projectScoped` tools validate membership                                      |
+| Execute an arbitrary query        | Allow-listed tools with Zod-typed parameters only                              |
 | Calculate wages, bills, or totals | §51 — deterministic modules; the model may explain a result, never produce one |
 
-The last row is the one that would be easiest to erode in a hurry — the model *can*
+The last row is the one that would be easiest to erode in a hurry — the model _can_
 multiply 24 × 700 and would usually get it right. It must not, because "usually" is not a
 property a payroll system may have.

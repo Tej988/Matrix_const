@@ -19,6 +19,7 @@ import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 import { openReportForPrint } from './reportPdf'
 
 /**
@@ -63,6 +64,7 @@ const forPrint = (cell: Cell, kind: ColumnKind): string =>
 
 export function ReportsPage() {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const projectRepo = useMemo(() => createProjectRepository(db), [])
   const paymentRepo = useMemo(() => createPaymentRepository(db), [])
   const billRepo = useMemo(() => createBillRepository(db), [])
@@ -103,7 +105,9 @@ export function ReportsPage() {
       if (format === 'csv') {
         const csv = toCsv(
           data.columns.map((c) => c.header),
-          data.rows.map((row) => row.map((cell, i) => forCsv(cell, data.columns[i]?.kind ?? 'text'))),
+          data.rows.map((row) =>
+            row.map((cell, i) => forCsv(cell, data.columns[i]?.kind ?? 'text')),
+          ),
         )
         const [content, mime] = csvBlobParts(csv)
         const url = URL.createObjectURL(new Blob([content], { type: mime }))
@@ -129,10 +133,12 @@ export function ReportsPage() {
             .filter((i) => i >= 0),
         },
         data.columns.map((c) => c.header),
-        data.rows.map((row) => row.map((cell, i) => forPrint(cell, data.columns[i]?.kind ?? 'text'))),
+        data.rows.map((row) =>
+          row.map((cell, i) => forPrint(cell, data.columns[i]?.kind ?? 'text')),
+        ),
       )
       if (!opened) {
-        setError('Your browser blocked the print window. Allow pop-ups for this site and try again.')
+        setError(t('popupBlocked'))
       }
     } catch (e) {
       setError((e as Error).message)
@@ -280,16 +286,19 @@ export function ReportsPage() {
       description: 'Every bill with its status and how much has been received.',
       build: async () => {
         const bills = await billRepo.listForProject(activeId)
-        const rows = bills.map((b) => [
-          b.billNumber,
-          Dates.formatDateKey(b.billDate),
-          b.clientName,
-          b.status.replace('_', ' ').toLowerCase(),
-          b.subtotalPaise,
-          b.netAmountPaise,
-          b.amountReceivedPaise,
-          b.netAmountPaise - b.amountReceivedPaise,
-        ] as Cell[])
+        const rows = bills.map(
+          (b) =>
+            [
+              b.billNumber,
+              Dates.formatDateKey(b.billDate),
+              b.clientName,
+              b.status.replace('_', ' ').toLowerCase(),
+              b.subtotalPaise,
+              b.netAmountPaise,
+              b.amountReceivedPaise,
+              b.netAmountPaise - b.amountReceivedPaise,
+            ] as Cell[],
+        )
         const total = (idx: number) => rows.reduce((s, r) => s + Number(r[idx]), 0)
         return {
           file: `bills-${activeProject?.code || activeId}`,
@@ -316,13 +325,16 @@ export function ReportsPage() {
       description: 'Money received from the client, with references.',
       build: async () => {
         const payments = await paymentRepo.listClientPayments(activeId)
-        const rows = payments.map((p) => [
-          Dates.formatDateKey(p.date),
-          p.amountPaise,
-          p.method.toLowerCase(),
-          p.bankReference ?? '',
-          p.status.toLowerCase(),
-        ] as Cell[])
+        const rows = payments.map(
+          (p) =>
+            [
+              Dates.formatDateKey(p.date),
+              p.amountPaise,
+              p.method.toLowerCase(),
+              p.bankReference ?? '',
+              p.status.toLowerCase(),
+            ] as Cell[],
+        )
         return {
           file: `payments-${activeProject?.code || activeId}`,
           title: 'Payment report',
@@ -345,13 +357,16 @@ export function ReportsPage() {
       description: 'All recorded expenses by category.',
       build: async () => {
         const expenses = await paymentRepo.listExpenses(activeId)
-        const rows = expenses.map((e) => [
-          Dates.formatDateKey(e.date),
-          e.category.toLowerCase(),
-          e.description,
-          e.amountPaise,
-          e.paymentMethod.replace('_', ' ').toLowerCase(),
-        ] as Cell[])
+        const rows = expenses.map(
+          (e) =>
+            [
+              Dates.formatDateKey(e.date),
+              e.category.toLowerCase(),
+              e.description,
+              e.amountPaise,
+              e.paymentMethod.replace('_', ' ').toLowerCase(),
+            ] as Cell[],
+        )
         return {
           file: `expenses-${activeProject?.code || activeId}`,
           title: 'Expense report',
@@ -374,17 +389,20 @@ export function ReportsPage() {
       description: 'Every work item with contract, completed and billed quantities.',
       build: async () => {
         const items = await boqRepo.listForProject(activeId)
-        const rows = items.map((i) => [
-          i.code,
-          i.name,
-          i.unit,
-          i.contractQty,
-          i.ratePaise,
-          i.contractAmountPaise,
-          i.completedQty,
-          i.billedQty,
-          Math.round((i.contractQty - i.completedQty) * 1000) / 1000,
-        ] as Cell[])
+        const rows = items.map(
+          (i) =>
+            [
+              i.code,
+              i.name,
+              i.unit,
+              i.contractQty,
+              i.ratePaise,
+              i.contractAmountPaise,
+              i.completedQty,
+              i.billedQty,
+              Math.round((i.contractQty - i.completedQty) * 1000) / 1000,
+            ] as Cell[],
+        )
         return {
           file: `ratecard-${activeProject?.code || activeId}`,
           title: 'Rate card and progress',
@@ -407,47 +425,63 @@ export function ReportsPage() {
     },
   ]
 
-  if (projects.isPending) return <p className="p-4 text-slate-500">Loading…</p>
+  if (projects.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (projects.isError) {
-    return <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+    return (
+      <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+    )
   }
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Reports</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          PDF to print or share. Spreadsheet to work with the numbers.
-        </p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          {t('reportsTitle')}
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t('reportsHint')}</p>
       </header>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
+        >
           {error}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className={labelClass}>Project</span>
-          <select value={activeId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
+          <span className={labelClass}>{t('project')}</span>
+          <select
+            value={activeId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className={inputClass}
+          >
             {projects.data.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
             ))}
           </select>
         </label>
         <label className="block">
-          <span className={labelClass}>Month (attendance and wages)</span>
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className={inputClass} />
+          <span className={labelClass}>{t('monthForAttendance')}</span>
+          <input
+            type="month"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+            className={inputClass}
+          />
         </label>
       </div>
 
       {summary.data && (
         <section className="grid gap-3 sm:grid-cols-4">
-          <Stat label="Contract" paise={summary.data.contractValuePaise} />
-          <Stat label="Billed" paise={summary.data.totalBilledPaise} />
-          <Stat label="Received" paise={summary.data.totalReceivedPaise} />
-          <Stat label="Receivable" paise={summary.data.receivablePaise} />
+          <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
+          <Stat label={t('billed')} paise={summary.data.totalBilledPaise} />
+          <Stat label={t('received')} paise={summary.data.totalReceivedPaise} />
+          <Stat label={t('receivable')} paise={summary.data.receivablePaise} />
         </section>
       )}
 
@@ -465,7 +499,7 @@ export function ReportsPage() {
                 disabled={busy !== null || activeId === ''}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
               >
-                {busy === `${r.key}-pdf` ? 'Preparing…' : 'PDF'}
+                {busy === `${r.key}-pdf` ? t('preparing') : 'PDF'}
               </button>
               <button
                 type="button"
@@ -473,7 +507,7 @@ export function ReportsPage() {
                 disabled={busy !== null || activeId === ''}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-600"
               >
-                {busy === `${r.key}-csv` ? 'Preparing…' : 'Excel'}
+                {busy === `${r.key}-csv` ? t('preparing') : t('excel')}
               </button>
             </div>
           </li>

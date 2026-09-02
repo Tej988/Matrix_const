@@ -32,13 +32,7 @@ export interface Client {
 // Projects
 // ---------------------------------------------------------------------------
 
-export const PROJECT_STATUSES = [
-  'PLANNING',
-  'ACTIVE',
-  'ON_HOLD',
-  'COMPLETED',
-  'CLOSED',
-] as const
+export const PROJECT_STATUSES = ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CLOSED'] as const
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 
 export const TAX_MODES = ['NONE', 'CGST_SGST', 'IGST'] as const
@@ -366,13 +360,7 @@ export interface LabourAssignment {
 // Attendance
 // ---------------------------------------------------------------------------
 
-export const ATTENDANCE_STATUSES = [
-  'PRESENT',
-  'ABSENT',
-  'HALF_DAY',
-  'LEAVE',
-  'HOLIDAY',
-] as const
+export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'HALF_DAY', 'LEAVE', 'HOLIDAY'] as const
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number]
 
 /**

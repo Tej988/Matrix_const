@@ -4,10 +4,12 @@ import { createClientRepository } from '@mc/shared/repositories/projects'
 import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 
 export function ClientsPage() {
   const user = useCurrentUser()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createClientRepository(db), [])
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
@@ -41,18 +43,22 @@ export function ClientsPage() {
     },
   })
 
-  if (clients.isPending) return <p className="p-4 text-slate-500">Loading clients…</p>
+  if (clients.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (clients.isError) {
-    return <QueryError error={clients.error} onRetry={() => void clients.refetch()} what="clients" />
+    return (
+      <QueryError error={clients.error} onRetry={() => void clients.refetch()} what="clients" />
+    )
   }
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Clients</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            {t('clientsTitle')}
+          </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {clients.data.length} {clients.data.length === 1 ? 'client' : 'clients'}
+            {t('countClients', { n: clients.data.length })}
           </p>
         </div>
         {can('client:write') && (
@@ -61,7 +67,7 @@ export function ClientsPage() {
             onClick={() => setAdding((v) => !v)}
             className="rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
           >
-            {adding ? 'Cancel' : 'New client'}
+            {adding ? t('cancel') : t('newClient')}
           </button>
         )}
       </header>
@@ -75,7 +81,7 @@ export function ClientsPage() {
           className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Client name">
+            <Field label={t('clientName')}>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -83,7 +89,7 @@ export function ClientsPage() {
                 className={inputClass}
               />
             </Field>
-            <Field label="Contact person">
+            <Field label={t('contactPerson')}>
               <input
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
@@ -91,7 +97,7 @@ export function ClientsPage() {
                 className={inputClass}
               />
             </Field>
-            <Field label="Phone (optional)">
+            <Field label={`${t('phone')} (${t('optional')})`}>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -99,8 +105,12 @@ export function ClientsPage() {
                 className={inputClass}
               />
             </Field>
-            <Field label="City (optional)">
-              <input value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
+            <Field label={`${t('city')} (${t('optional')})`}>
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className={inputClass}
+              />
             </Field>
           </div>
 
@@ -115,14 +125,14 @@ export function ClientsPage() {
             disabled={name.trim() === '' || create.isPending}
             className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
           >
-            {create.isPending ? 'Adding…' : 'Add client'}
+            {create.isPending ? t('adding') : t('addClient')}
           </button>
         </form>
       )}
 
       {clients.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No clients yet.</p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noClientsYet')}</p>
         </div>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
@@ -136,7 +146,7 @@ export function ClientsPage() {
               </div>
               {c.status === 'INACTIVE' && (
                 <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-slate-800">
-                  inactive
+                  {t('inactive')}
                 </span>
               )}
             </li>

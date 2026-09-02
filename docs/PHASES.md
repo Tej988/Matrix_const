@@ -10,25 +10,25 @@ Sizes are relative effort, not calendar promises.
 
 ---
 
-| # | Phase | Size | Status |
-|---|---|---|---|
-| 0 | Discovery and architecture | M | ✅ complete |
-| 1 | Repository foundation | M | ✅ **complete** |
-| 2 | Authentication and RBAC | M | ✅ **complete** |
-| 3 | Clients and projects | M | ✅ **complete** |
-| 4 | BOQ and rate card | S | ✅ **complete** |
-| 5 | Measurements | L | ✅ **complete** |
-| 6 | Billing | L | ✅ **complete** |
-| 7 | Labour and offline attendance | L | ✅ **complete** |
-| 8 | Wages and labour payments | M | ✅ **complete** |
-| 9 | Client payments and finance | L | ✅ **complete** |
-| 10 | Reports | M | ✅ **complete** |
-| 11 | Language | S | ⚠️ **partial** |
-| — | **v1 usable — Spark, ₹0** | | |
-| 12 | AI text assistant | L | ⬜ needs Blaze decision |
-| 13 | Voice assistant | M | ⬜ needs Blaze + R-09 spike |
-| 14 | AI document processing | L | ⬜ needs Blaze |
-| 15 | Production hardening | M | ⬜ |
+| #   | Phase                         | Size | Status                      |
+| --- | ----------------------------- | ---- | --------------------------- |
+| 0   | Discovery and architecture    | M    | ✅ complete                 |
+| 1   | Repository foundation         | M    | ✅ **complete**             |
+| 2   | Authentication and RBAC       | M    | ✅ **complete**             |
+| 3   | Clients and projects          | M    | ✅ **complete**             |
+| 4   | BOQ and rate card             | S    | ✅ **complete**             |
+| 5   | Measurements                  | L    | ✅ **complete**             |
+| 6   | Billing                       | L    | ✅ **complete**             |
+| 7   | Labour and offline attendance | L    | ✅ **complete**             |
+| 8   | Wages and labour payments     | M    | ✅ **complete**             |
+| 9   | Client payments and finance   | L    | ✅ **complete**             |
+| 10  | Reports                       | M    | ✅ **complete**             |
+| 11  | Language                      | S    | ⚠️ **partial**              |
+| —   | **v1 usable — Spark, ₹0**     |      |                             |
+| 12  | AI text assistant             | L    | ⬜ needs Blaze decision     |
+| 13  | Voice assistant               | M    | ⬜ needs Blaze + R-09 spike |
+| 14  | AI document processing        | L    | ⬜ needs Blaze              |
+| 15  | Production hardening          | M    | ⬜                          |
 
 ---
 
@@ -62,14 +62,14 @@ answer.
 
 **Result — 2026-08-27.** Done, with one item outstanding.
 
-| | |
-|---|---|
-| Monorepo | npm workspaces: `apps/web`, `packages/{types,shared,validation}` |
-| Web app | Vite 6 + React 19 + TS strict + Tailwind 4, builds to 205 KB gzipped |
-| Business layer | `Money` (integer paise, ADR-004) and `Dates` (IST-anchored, R-12) |
-| Tests | **88 passing** — 67 unit, 21 Security Rules against the emulator |
-| Rules | Default deny, `users`, `auditLogs`, `settings`, self-promotion guard |
-| Gate | `npm run check` = lint → typecheck → unit → rules → build |
+|                |                                                                      |
+| -------------- | -------------------------------------------------------------------- |
+| Monorepo       | npm workspaces: `apps/web`, `packages/{types,shared,validation}`     |
+| Web app        | Vite 6 + React 19 + TS strict + Tailwind 4, builds to 205 KB gzipped |
+| Business layer | `Money` (integer paise, ADR-004) and `Dates` (IST-anchored, R-12)    |
+| Tests          | **88 passing** — 67 unit, 21 Security Rules against the emulator     |
+| Rules          | Default deny, `users`, `auditLogs`, `settings`, self-promotion guard |
+| Gate           | `npm run check` = lint → typecheck → unit → rules → build            |
 
 | Firebase | `matrix-const` linked, Web app registered, rules deployed clean |
 | Dev server | Vite serves on :5173, HTTP 200 |
@@ -78,7 +78,7 @@ answer.
 and one cannot be provisioned. ADR-009 (Google Drive) stands. Details in `RISKS.md` R-05.
 
 **Bug caught during deploy:** `isMember()` had its path literal wrapped across lines, which
-Firestore accepts as a *warning* while parsing it wrongly. It would have silently denied
+Firestore accepts as a _warning_ while parsing it wrongly. It would have silently denied
 supervisors access to their own projects in Phase 3. The helper is removed until Phase 3
 needs it, and the gotcha is recorded in the rules file.
 
@@ -100,22 +100,22 @@ self-promotion denials. A signed-in stranger can read nothing.
 
 **Result — 2026-08-27.** Complete, pending one manual bootstrap step.
 
-| | |
-|---|---|
-| Sign-in | Google popup, `drive.file` scope requested in the same consent |
-| Auth states | `loading` / `signed-out` / `unprovisioned` / `disabled` / `ready`, each with its own screen |
-| RBAC | `packages/shared/src/business/permissions.ts` — 32 permissions × 5 roles, pure and testable |
-| Route guards | permission-gated; nav renders only what the role holds |
-| User admin | OWNER-only page: add by UID, change role, enable/disable |
-| Audit | role changes write user + `auditLogs` in one batch — rules reject the batch if the audit entry is forged |
-| Tests | **113 passing** — 85 unit (18 new RBAC), 28 rules (7 new) |
-| Rules | deployed to `matrix-const`, clean |
+|              |                                                                                                          |
+| ------------ | -------------------------------------------------------------------------------------------------------- |
+| Sign-in      | Google popup, `drive.file` scope requested in the same consent                                           |
+| Auth states  | `loading` / `signed-out` / `unprovisioned` / `disabled` / `ready`, each with its own screen              |
+| RBAC         | `packages/shared/src/business/permissions.ts` — 32 permissions × 5 roles, pure and testable              |
+| Route guards | permission-gated; nav renders only what the role holds                                                   |
+| User admin   | OWNER-only page: add by UID, change role, enable/disable                                                 |
+| Audit        | role changes write user + `auditLogs` in one batch — rules reject the batch if the audit entry is forged |
+| Tests        | **113 passing** — 85 unit (18 new RBAC), 28 rules (7 new)                                                |
+| Rules        | deployed to `matrix-const`, clean                                                                        |
 
 Two things found while building:
 
-- **Owner self-lockout.** An owner could demote or disable *themselves*. On a sole-owner
+- **Owner self-lockout.** An owner could demote or disable _themselves_. On a sole-owner
   account that is unrecoverable — no server exists to undo it and `user:manage` becomes
-  permanently unreachable. Now blocked in Rules *and* in the UI. A second owner, or the
+  permanently unreachable. Now blocked in Rules _and_ in the UI. A second owner, or the
   console, can still do it, so nothing legitimate is prevented.
 - **No invitations, by design.** Sending an email invite needs a server (ADR-002). Instead
   the person signs in, reads their account ID off the awaiting-access screen, and passes it
@@ -134,19 +134,19 @@ Tata Project Limited / Stonede / Rakesh Rao / ₹18,50,000 seed (§44).
 
 **Result — 2026-08-27.** Complete, with two carry-overs.
 
-| | |
-|---|---|
-| Clients | list, create, contact details; deactivate never delete |
-| Projects | list, create with live amount-in-words, detail page |
-| Summary | `summary/current` created atomically with every project |
-| Membership | `projectMembers` with the `{projectId}_{uid}` ID contract |
+|                |                                                                                                                |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| Clients        | list, create, contact details; deactivate never delete                                                         |
+| Projects       | list, create with live amount-in-words, detail page                                                            |
+| Summary        | `summary/current` created atomically with every project                                                        |
+| Membership     | `projectMembers` with the `{projectId}_{uid}` ID contract                                                      |
 | Business layer | `outstanding.ts` (the three R-01 figures) and `projectSummary.ts` (authoritative derivation + drift detection) |
-| Tests | **167 passing** — 113 unit (28 new), 54 rules (26 new) |
-| Rules | clients, projects, summary, membership — deployed |
+| Tests          | **167 passing** — 113 unit (28 new), 54 rules (26 new)                                                         |
+| Rules          | clients, projects, summary, membership — deployed                                                              |
 
 **R-01 is resolved in the model rather than by picking a side.** All three figures are
-computed and labelled separately on the project page: *Receivable* (billed − received),
-*Unbilled balance* (contract − billed), *Contract remaining*. Whichever one the owner means
+computed and labelled separately on the project page: _Receivable_ (billed − received),
+_Unbilled balance_ (contract − billed), _Contract remaining_. Whichever one the owner means
 by "kitna baaki hai", it is on screen with an unambiguous name, and choosing a headline
 later is a Settings change, not a migration.
 
@@ -175,14 +175,14 @@ dozens of lines and one-at-a-time forms are how data entry gets abandoned.
 
 **Result — 2026-08-27.** Complete, with bulk entry deferred.
 
-| | |
-|---|---|
-| `boqCalculator` | contract amount, remaining/unbilled quantity, completion %, roll-ups |
-| §4 rule | `validateQuantity` — rejects overshoot unless a change order is explicitly approved |
-| Units | SQFT, SQM, RMT, NOS, KG, MT, CUM, LS, DAY |
-| UI | rate card table on the project page, live `qty × rate` preview with amount in words |
-| Coverage check | warns when the rate card total ≠ the project contract value |
-| Tests | **208 passing** — 139 unit (26 new), 69 rules (15 new) |
+|                 |                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `boqCalculator` | contract amount, remaining/unbilled quantity, completion %, roll-ups                |
+| §4 rule         | `validateQuantity` — rejects overshoot unless a change order is explicitly approved |
+| Units           | SQFT, SQM, RMT, NOS, KG, MT, CUM, LS, DAY                                           |
+| UI              | rate card table on the project page, live `qty × rate` preview with amount in words |
+| Coverage check  | warns when the rate card total ≠ the project contract value                         |
+| Tests           | **208 passing** — 139 unit (26 new), 69 rules (15 new)                              |
 
 Three points worth recording:
 
@@ -285,12 +285,49 @@ abandoned.
 the tool boundary · grounded responses · write proposals with mandatory confirmation (§32) ·
 Hinglish intent handling.
 
-**13 — Voice.** *Opens with the R-09 accuracy spike*: twenty real phrases, spoken by a real
+**13 — Voice.** _Opens with the R-09 accuracy spike_: twenty real phrases, spoken by a real
 user, scored — before any UI is built. Then STT/TTS, the large microphone button (§33), and
 a constrained command grammar if open-ended recognition proves unreliable.
 
 **14 — Document processing.** Payment screenshot OCR · bank statement parsing · quotation to
 BOQ draft. Everything extracted enters as `SUGGESTED` and requires human confirmation (§34).
+
+---
+
+## Post-MVP revision — 2026-08-29
+
+Feedback after first real use, addressed in one pass with parallel agents.
+
+**Dashboard rebuilt.** It was still the Phase-1 placeholder — foundations checks and
+sample arithmetic, no real data. Now driven by two rules:
+
+1. _Lead with what needs a decision today, not with totals._ A large number tells the
+   owner nothing; "attendance not marked at Tata Project" tells him what to do next. The
+   **Needs attention** panel sits above every figure and links straight to the fix:
+   unmarked attendance, measurements awaiting approval, unpaid bills, wages outstanding.
+2. _Read summary documents, never raw collections_ (R-10). One read per active project for
+   money. Today's attendance is the single live query and is bounded to active sites.
+
+Below that: business-wide totals, **active sites** each showing today's attendance and
+receivable, recent payments, and unpaid bills. Role-aware — a supervisor's dashboard is
+about attendance, because they cannot see money at all.
+
+**Icons replaced.** The emoji set looked generic and rendered differently on every
+platform. Now hand-drawn 24×24 line icons in `components/icons.tsx`, chosen for the domain:
+a trowel for measurements, a measuring tape for the rate card, a hard hat for labour. No
+dependency, `currentColor`, one stroke weight.
+
+**Hindi completed.** The string table went from 47 keys to ~180, covering every screen.
+Register is plain spoken Hindi, not literary — "लेना बाक़ी" rather than "प्राप्य", because
+the reader runs a construction business. A missing Hindi key remains a compile error.
+
+**Labour advances.** Paying a worker before wages are earned is normal in construction and
+the model previously only showed it as a negative payable. Now a first-class operation:
+advance outstanding is tracked and recovered automatically against future wages.
+
+**Bulk BOQ entry.** Deferred at Phase 4; now delivered. Paste rows from a spreadsheet with
+a live parsed preview, per-row errors, and tolerant parsing of the formats people actually
+paste — tab or comma separated, messy unit spellings, Indian-format numbers.
 
 ---
 
@@ -309,7 +346,7 @@ mitigated, or explicitly accepted in writing.
 ## Sequencing notes
 
 **Why language is Phase 11, not Phase 1.** §29 says do not hardcode strings, and we will not
-— every string is a translation key from Phase 1. But *writing* the Hindi happens once the
+— every string is a translation key from Phase 1. But _writing_ the Hindi happens once the
 screens have stopped moving. Translating a UI three times is waste.
 
 **Why AI is last.** §2 is clear that this is not an AI product; it is a financial system that
@@ -328,15 +365,15 @@ safely, late enough to build on solid ground.
 Built in one pass at the owner's request, overriding §58's phase-by-phase approval gate.
 Every phase still passed the same gate before the next began.
 
-| Phase | What shipped |
-|---|---|
-| **5 Measurements** | Measurement book, monthly sheets, submit → approve workflow, live §4 quantity checking, approval transaction that moves `completedQty` atomically |
-| **6 Billing** | Bill generation from approved measurements, transactional bill numbering per FY, frozen line snapshots, GST/TDS/retention through one formula, printable bill, cancellation with reversal |
-| **7 Labour + attendance** | Labour roster, per-project assignments and rates, offline attendance on deterministic IDs, online/offline indicator |
-| **8 Wages** | `wageCalculator` (§14 example exact), per-record rate handling, earned/paid/payable ledger, advances shown as negative |
-| **9 Payments + expenses** | Client receipts with bill settlement, labour payments, expenses, append-only ledger, idempotency keys |
-| **10 Reports** | Seven reports, each rendering to **PDF and spreadsheet from one definition**; doubles as the §41 backup |
-| **11 Language** | English + Hindi, type-checked translation table, toggle in the header — **partial coverage, see below** |
+| Phase                     | What shipped                                                                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **5 Measurements**        | Measurement book, monthly sheets, submit → approve workflow, live §4 quantity checking, approval transaction that moves `completedQty` atomically                                         |
+| **6 Billing**             | Bill generation from approved measurements, transactional bill numbering per FY, frozen line snapshots, GST/TDS/retention through one formula, printable bill, cancellation with reversal |
+| **7 Labour + attendance** | Labour roster, per-project assignments and rates, offline attendance on deterministic IDs, online/offline indicator                                                                       |
+| **8 Wages**               | `wageCalculator` (§14 example exact), per-record rate handling, earned/paid/payable ledger, advances shown as negative                                                                    |
+| **9 Payments + expenses** | Client receipts with bill settlement, labour payments, expenses, append-only ledger, idempotency keys                                                                                     |
+| **10 Reports**            | Seven reports, each rendering to **PDF and spreadsheet from one definition**; doubles as the §41 backup                                                                                   |
+| **11 Language**           | English + Hindi, type-checked translation table, toggle in the header — **partial coverage, see below**                                                                                   |
 
 **433 tests** — 276 unit, 157 Security Rules.
 

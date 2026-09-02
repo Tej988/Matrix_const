@@ -7,6 +7,7 @@ import type { Paise } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useAuth } from '../auth/authContext'
 import { Amount } from '../../components/Money'
+import { useTranslation } from '../../i18n/useTranslation'
 import { BoqSection } from '../boq/BoqSection'
 import { MeasurementsSection } from '../measurements/MeasurementsSection'
 import { BillsSection } from '../bills/BillsSection'
@@ -15,6 +16,7 @@ import { FinanceSection } from '../payments/FinanceSection'
 export function ProjectDetailPage() {
   const { projectId = '' } = useParams()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createProjectRepository(db), [])
   const showMoney = can('financials:view')
 
@@ -29,15 +31,18 @@ export function ProjectDetailPage() {
     enabled: showMoney,
   })
 
-  if (project.isPending) return <p className="p-4 text-slate-500">Loading…</p>
+  if (project.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (project.isError || !project.data) {
     return (
       <div className="space-y-4">
-        <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300">
-          Project not found, or you do not have access to it.
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
+          {t('projectNotFound')}
         </p>
         <Link to="/projects" className="text-slate-600 underline dark:text-slate-300">
-          Back to projects
+          {t('backToProjects')}
         </Link>
       </div>
     )
@@ -63,7 +68,7 @@ export function ProjectDetailPage() {
     <div className="space-y-6">
       <div>
         <Link to="/projects" className="text-sm text-slate-500 hover:underline dark:text-slate-400">
-          ← Projects
+          ← {t('projectsTitle')}
         </Link>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{p.name}</h1>
         <p className="text-slate-500 dark:text-slate-400">
@@ -71,7 +76,7 @@ export function ProjectDetailPage() {
           {p.code && <span className="ml-2 font-mono text-xs">{p.code}</span>}
         </p>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {p.status.replace('_', ' ').toLowerCase()} · started{' '}
+          {p.status.replace('_', ' ').toLowerCase()} · {t('started')}{' '}
           {Dates.formatDateKey(p.startDate)}
           {p.siteAddress && ` · ${p.siteAddress}`}
         </p>
@@ -79,18 +84,18 @@ export function ProjectDetailPage() {
 
       {!showMoney && (
         <p className="rounded-lg bg-slate-100 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          Financial figures are not shown for your role.
+          {t('noMoneyForRole')}
         </p>
       )}
 
-      {showMoney && summary.isPending && <p className="text-slate-500">Loading figures…</p>}
+      {showMoney && summary.isPending && <p className="text-slate-500">{t('loading')}</p>}
 
       {showMoney && summary.data && outstanding && (
         <>
           <section className="grid gap-3 sm:grid-cols-3">
-            <Stat label="Contract value" paise={summary.data.contractValuePaise} />
-            <Stat label="Billed" paise={summary.data.totalBilledPaise} />
-            <Stat label="Received" paise={summary.data.totalReceivedPaise} />
+            <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
+            <Stat label={t('billed')} paise={summary.data.totalBilledPaise} />
+            <Stat label={t('received')} paise={summary.data.totalReceivedPaise} />
           </section>
 
           {/*
@@ -100,59 +105,58 @@ export function ProjectDetailPage() {
           */}
           <section>
             <h2 className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">
-              What is outstanding
+              {t('whatIsOutstanding')}
             </h2>
             <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
               <Line
-                label="Receivable"
-                hint="Billed but not yet paid — owed to you today"
+                label={t('receivable')}
+                hint={t('receivableHint')}
                 paise={outstanding.receivablePaise}
                 emphasis
               />
               <Line
-                label="Unbilled balance"
-                hint="Contract value still to invoice"
+                label={t('unbilledBalance')}
+                hint={t('unbilledHint')}
                 paise={outstanding.unbilledBalancePaise}
               />
               <Line
-                label="Contract remaining"
-                hint="Still to collect in total"
+                label={t('contractRemaining')}
+                hint={t('contractRemainingHint')}
                 paise={outstanding.contractRemainingPaise}
               />
             </dl>
 
             {isOverBilled(outstanding) && (
               <p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                Billing exceeds the contract value. That is legitimate after a change order,
-                but worth confirming.
+                {t('overBilled')}
               </p>
             )}
             {isOverPaid(outstanding) && (
               <p className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-200">
-                The client has paid more than has been billed — an advance.
+                {t('overPaid')}
               </p>
             )}
           </section>
 
           <section>
             <h2 className="mb-2 text-xs font-medium tracking-wide text-slate-500 uppercase">
-              Labour and costs
+              {t('labourAndCosts')}
             </h2>
             <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-              <Line label="Labour earned" paise={summary.data.labourEarnedPaise} />
-              <Line label="Labour paid" paise={summary.data.labourPaidPaise} />
-              <Line label="Labour payable" paise={summary.data.labourPayablePaise} emphasis />
-              <Line label="Other expenses" paise={summary.data.otherExpensesPaise} />
+              <Line label={t('labourEarned')} paise={summary.data.labourEarnedPaise} />
+              <Line label={t('labourPaid')} paise={summary.data.labourPaidPaise} />
+              <Line label={t('labourPayable')} paise={summary.data.labourPayablePaise} emphasis />
+              <Line label={t('otherExpenses')} paise={summary.data.otherExpensesPaise} />
               <Line
-                label="Cash position"
-                hint="Received minus cash out. Not profit — material and overhead costs are not tracked."
+                label={t('cashPosition')}
+                hint={t('cashPositionHint')}
                 paise={summary.data.netPositionPaise}
               />
             </dl>
           </section>
 
           <p className="text-xs text-slate-400">
-            Figures last computed {summary.data.computedAt.toLocaleString('en-IN')}
+            {t('figuresComputed')} {summary.data.computedAt.toLocaleString('en-IN')}
           </p>
         </>
       )}
@@ -193,12 +197,24 @@ function Line({
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3">
       <dt>
-        <span className={emphasis ? 'font-medium text-slate-900 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}>
+        <span
+          className={
+            emphasis
+              ? 'font-medium text-slate-900 dark:text-slate-100'
+              : 'text-slate-600 dark:text-slate-300'
+          }
+        >
           {label}
         </span>
         {hint && <span className="block text-xs text-slate-400">{hint}</span>}
       </dt>
-      <dd className={emphasis ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-200'}>
+      <dd
+        className={
+          emphasis
+            ? 'font-semibold text-slate-900 dark:text-slate-100'
+            : 'text-slate-700 dark:text-slate-200'
+        }
+      >
         <Amount paise={paise} signed />
       </dd>
     </div>

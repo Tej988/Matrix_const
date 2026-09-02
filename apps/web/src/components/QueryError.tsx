@@ -54,9 +54,7 @@ export function QueryError({
           <span className="text-xs opacity-75">retrying in {countdown}s</span>
         )}
       </div>
-      {!described.transient && (
-        <p className="pt-1 text-xs opacity-60">Could not load {what}.</p>
-      )}
+      {!described.transient && <p className="pt-1 text-xs opacity-60">Could not load {what}.</p>}
     </div>
   )
 }

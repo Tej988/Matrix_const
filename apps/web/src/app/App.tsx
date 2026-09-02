@@ -105,7 +105,6 @@ function AuthGate() {
                   <WagesPage />
                 </RequirePermission>
               }
-
             />
 
             <Route

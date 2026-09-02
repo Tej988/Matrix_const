@@ -21,12 +21,12 @@ import { resetTour } from '../tour/Tour'
  */
 export function SettingsPage() {
   const user = useCurrentUser()
-  const { locale, setLocale } = useTranslation()
+  const { t, locale, setLocale } = useTranslation()
   const projectRepo = useMemo(() => createProjectRepository(db), [])
   const reconcileRepo = useMemo(() => createReconcileRepository(db), [])
-  const [checked, setChecked] = useState<
-    Awaited<ReturnType<ReturnType<typeof createReconcileRepository>['preview']>> | null
-  >(null)
+  const [checked, setChecked] = useState<Awaited<
+    ReturnType<ReturnType<typeof createReconcileRepository>['preview']>
+  > | null>(null)
   const [checkedProject, setCheckedProject] = useState<Project | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,7 +50,7 @@ export function SettingsPage() {
 
   const apply = useMutation({
     mutationFn: async () => {
-      if (!checked) throw new Error('Nothing to apply')
+      if (!checked) throw new Error(t('nothingToApply'))
       await reconcileRepo.apply(checked.derived, checked.drift, {
         uid: user.uid,
         displayName: user.displayName,
@@ -66,11 +66,15 @@ export function SettingsPage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Settings</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          {t('settingsTitle')}
+        </h1>
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Language</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          {t('language')}
+        </h2>
         <div className="flex gap-2">
           {(['en', 'hi'] as const).map((l) => (
             <button
@@ -93,23 +97,26 @@ export function SettingsPage() {
       <section className="space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Check the figures
+            {t('checkTheFigures')}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Recalculates a project&rsquo;s totals from every underlying bill, payment, wage and
-            expense, and shows anything that disagrees with what is stored. Nothing is written
-            until you confirm.
-          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('reconcileExplain')}</p>
         </div>
 
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
+          <p
+            role="alert"
+            className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
+          >
             {error}
           </p>
         )}
 
         {projects.isError && (
-          <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+          <QueryError
+            error={projects.error}
+            onRetry={() => void projects.refetch()}
+            what="projects"
+          />
         )}
 
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
@@ -124,7 +131,7 @@ export function SettingsPage() {
                 disabled={check.isPending}
                 className="shrink-0 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-600"
               >
-                {check.isPending ? 'Checking…' : 'Check'}
+                {check.isPending ? t('checking') : t('check')}
               </button>
             </li>
           ))}
@@ -132,32 +139,27 @@ export function SettingsPage() {
 
         {checked && (
           <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-            <p className="font-medium text-slate-900 dark:text-slate-100">
-              {checkedProject?.name}
-            </p>
+            <p className="font-medium text-slate-900 dark:text-slate-100">{checkedProject?.name}</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Read {checked.documentsRead} financial{' '}
-              {checked.documentsRead === 1 ? 'record' : 'records'}.
+              {t('countRecordsRead', { n: checked.documentsRead })}
             </p>
 
             {checked.drift.length === 0 ? (
               <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950 dark:text-green-300">
-                Everything matches. The stored totals agree with the underlying records.
+                {t('everythingMatches')}
               </p>
             ) : (
               <>
                 <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                  {checked.drift.length}{' '}
-                  {checked.drift.length === 1 ? 'figure disagrees' : 'figures disagree'} with the
-                  underlying records.
+                  {t('countFiguresDisagree', { n: checked.drift.length })}
                 </p>
                 <table className="w-full text-sm">
                   <thead className="text-left text-xs tracking-wide text-slate-500 uppercase">
                     <tr>
-                      <th className="py-2">Figure</th>
-                      <th className="py-2 text-right">Stored</th>
-                      <th className="py-2 text-right">Correct</th>
-                      <th className="py-2 text-right">Difference</th>
+                      <th className="py-2">{t('figure')}</th>
+                      <th className="py-2 text-right">{t('stored')}</th>
+                      <th className="py-2 text-right">{t('correct')}</th>
+                      <th className="py-2 text-right">{t('difference')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -185,7 +187,7 @@ export function SettingsPage() {
                   disabled={apply.isPending}
                   className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
                 >
-                  {apply.isPending ? 'Correcting…' : 'Correct the stored figures'}
+                  {apply.isPending ? t('correcting') : t('correctStoredFigures')}
                 </button>
               </>
             )}
@@ -195,11 +197,9 @@ export function SettingsPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Introduction
+          {t('introduction')}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          The walkthrough shown on first sign-in.
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t('tourHint')}</p>
         <button
           type="button"
           onClick={() => {
@@ -208,17 +208,19 @@ export function SettingsPage() {
           }}
           className="rounded-xl border border-slate-300 px-5 py-3 font-medium dark:border-slate-600"
         >
-          Show the introduction again
+          {t('showTourAgain')}
         </button>
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">AI assistant</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          {t('aiAssistant')}
+        </h2>
         <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          <strong>Not available.</strong> {AI_STATUS.reason}
+          <strong>{t('notAvailable')}</strong> {AI_STATUS.reason}
           <br />
-          The tool layer is built and tested — when billing is enabled, connecting a provider is
-          an adapter, not a rewrite.
+          The tool layer is built and tested — when billing is enabled, connecting a provider is an
+          adapter, not a rewrite.
         </p>
       </section>
     </div>

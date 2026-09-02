@@ -10,10 +10,12 @@ import {
   labourLedger,
   labourPaymentKey,
   needsDisambiguation,
+  type LabourLedger,
 } from '@mc/shared'
 import { PAYMENT_METHODS, type DateKey, type PaymentMethod, type Paise } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
+import { useTranslation } from '../../i18n/useTranslation'
 import { Amount, AmountWithWords } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 
@@ -22,11 +24,21 @@ import { QueryError } from '../../components/QueryError'
  *
  * Every figure on this page comes from `calculateWage` and `labourLedger` -
  * deterministic functions over attendance records. Section 51 forbids anything
- * else computing them.
+ * else computing them, advance recovery included.
  */
+
+/** What the pay form was opened for. `due` is a suggested amount, not a limit. */
+interface PayTarget {
+  labourId: string
+  name: string
+  due: Paise
+  isAdvance: boolean
+}
+
 export function WagesPage() {
   const user = useCurrentUser()
   const queryClient = useQueryClient()
+  const { t } = useTranslation()
 
   const labourRepo = useMemo(() => createLabourRepository(db), [])
   const attendanceRepo = useMemo(() => createAttendanceRepository(db), [])
@@ -35,7 +47,7 @@ export function WagesPage() {
 
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState(Dates.currentPeriod() as string)
-  const [paying, setPaying] = useState<{ labourId: string; name: string; due: Paise } | null>(null)
+  const [paying, setPaying] = useState<PayTarget | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const projects = useQuery({
@@ -73,6 +85,7 @@ export function WagesPage() {
       amountPaise: Paise
       method: PaymentMethod
       reference: string
+      isAdvance: boolean
     }) =>
       paymentRepo.recordLabourPayment(
         {
@@ -84,7 +97,10 @@ export function WagesPage() {
             projectId: activeProjectId,
             amountPaise: input.amountPaise,
             date: Dates.todayKey(),
-            reference: input.reference,
+            // An advance and a wage payment of the same amount, to the same
+            // person, on the same day are two real payments. Without this they
+            // would hash alike and the second would be rejected as a duplicate.
+            reference: input.isAdvance ? `ADVANCE ${input.reference}` : input.reference,
           }),
         },
         { uid: user.uid, displayName: user.displayName },
@@ -98,9 +114,15 @@ export function WagesPage() {
     onError: (e) => setError((e as Error).message),
   })
 
-  if (projects.isPending) return <p className="p-4 text-slate-500">Loading…</p>
+  if (projects.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (projects.isError) {
-    return <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+    return (
+      <QueryError
+        error={projects.error}
+        onRetry={() => void projects.refetch()}
+        what={t('projectsTitle')}
+      />
+    )
   }
 
   const rows = (roster.data ?? []).map((a) => {
@@ -109,35 +131,50 @@ export function WagesPage() {
     const paid = (payments.data ?? []).filter(
       (p) => p.labourId === a.labourId && p.status === 'CONFIRMED',
     )
-    const ledger = labourLedger([wage.earnedAmountPaise], paid.map((p) => p.amountPaise))
+    const ledger = labourLedger(
+      [wage.earnedAmountPaise],
+      paid.map((p) => ({ amountPaise: p.amountPaise, isAdvance: p.isAdvance === true })),
+    )
     return { assignment: a, wage, ledger }
   })
 
   const totals = {
     earned: rows.length ? Money.sum(rows.map((r) => r.ledger.earnedPaise)) : Money.ZERO,
     paid: rows.length ? Money.sum(rows.map((r) => r.ledger.paidPaise)) : Money.ZERO,
-    payable: rows.length ? Money.sum(rows.map((r) => r.ledger.payablePaise)) : Money.ZERO,
+    advance: rows.length
+      ? Money.sum(rows.map((r) => r.ledger.advanceOutstandingPaise))
+      : Money.ZERO,
+    payable: rows.length ? Money.sum(rows.map((r) => r.ledger.netPayablePaise)) : Money.ZERO,
   }
 
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Wages</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          {t('wagesTitle')}
+        </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {Dates.formatPeriod(period as ReturnType<typeof Dates.currentPeriod>)}
         </p>
       </header>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
+        >
           {error}
         </p>
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className={labelClass}>Project</span>
-          <select value={activeProjectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
+          <span className={labelClass}>{t('project')}</span>
+          <select
+            value={activeProjectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className={inputClass}
+          >
             {projects.data.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -146,7 +183,7 @@ export function WagesPage() {
           </select>
         </label>
         <label className="block">
-          <span className={labelClass}>Month</span>
+          <span className={labelClass}>{t('month')}</span>
           <input
             type="month"
             value={period}
@@ -156,11 +193,13 @@ export function WagesPage() {
         </label>
       </div>
 
-      {(roster.isPending || attendance.isPending) && <p className="text-slate-500">Loading…</p>}
+      {(roster.isPending || attendance.isPending) && (
+        <p className="text-slate-500">{t('loading')}</p>
+      )}
 
       {rows.length === 0 && !roster.isPending && (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No labour assigned to this project.</p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noLabourAssigned')}</p>
         </div>
       )}
 
@@ -170,12 +209,13 @@ export function WagesPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs tracking-wide text-slate-500 uppercase dark:bg-slate-800 dark:text-slate-400">
                 <tr>
-                  <th className="p-3">Name</th>
-                  <th className="p-3 text-right">Days</th>
-                  <th className="p-3 text-right">Rate</th>
-                  <th className="p-3 text-right">Earned</th>
-                  <th className="p-3 text-right">Paid</th>
-                  <th className="p-3 text-right">Payable</th>
+                  <th className="p-3">{t('name')}</th>
+                  <th className="p-3 text-right">{t('days')}</th>
+                  <th className="p-3 text-right">{t('rate')}</th>
+                  <th className="p-3 text-right">{t('earned')}</th>
+                  <th className="p-3 text-right">{t('paid')}</th>
+                  <th className="p-3 text-right">{t('advance')}</th>
+                  <th className="p-3 text-right">{t('netPayable')}</th>
                   <th className="p-3"></th>
                 </tr>
               </thead>
@@ -187,15 +227,17 @@ export function WagesPage() {
                     </td>
                     <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                       {wage.payableDays}
-                      <span className="ml-1 text-xs text-slate-400">
-                        {wage.presentDays}P
-                        {wage.halfDays > 0 && ` ${wage.halfDays}½`}
-                        {wage.absentDays > 0 && ` ${wage.absentDays}A`}
+                      <span className="ml-1 text-xs whitespace-nowrap text-slate-400">
+                        {wage.presentDays} {t('present')}
+                        {wage.halfDays > 0 && `, ${wage.halfDays} ${t('halfDay')}`}
+                        {wage.absentDays > 0 && `, ${wage.absentDays} ${t('absent')}`}
                       </span>
                     </td>
                     <td className="p-3 text-right">
                       <Amount paise={assignment.dailyRatePaise} />
-                      {wage.mixedRates && <span className="ml-1 text-xs text-amber-600">mixed</span>}
+                      {wage.mixedRates && (
+                        <span className="ml-1 text-xs text-amber-600">{t('mixed')}</span>
+                      )}
                     </td>
                     <td className="p-3 text-right">
                       <Amount paise={ledger.earnedPaise} />
@@ -203,28 +245,50 @@ export function WagesPage() {
                     <td className="p-3 text-right text-slate-500">
                       <Amount paise={ledger.paidPaise} />
                     </td>
+                    <AdvanceCell ledger={ledger} />
                     <td className="p-3 text-right font-medium">
-                      <Amount paise={ledger.payablePaise} signed />
-                      {ledger.isAdvance && (
-                        <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">advance</span>
+                      <Amount paise={ledger.netPayablePaise} signed />
+                      {ledger.isAdvance && ledger.advanceOutstandingPaise === 0 && (
+                        <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">
+                          {t('advance')}
+                        </span>
                       )}
                     </td>
-                    <td className="p-3 text-right">
-                      {ledger.payablePaise > 0 && (
+                    <td className="p-3">
+                      <div className="flex justify-end gap-2">
+                        {ledger.netPayablePaise > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPaying({
+                                labourId: assignment.labourId,
+                                name: assignment.labourName,
+                                due: ledger.netPayablePaise,
+                                isAdvance: false,
+                              })
+                            }
+                            className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+                          >
+                            {t('pay')}
+                          </button>
+                        )}
+                        {/* Offered whatever the payable says - nothing owed yet
+                            is exactly the situation an advance is for. */}
                         <button
                           type="button"
                           onClick={() =>
                             setPaying({
                               labourId: assignment.labourId,
                               name: assignment.labourName,
-                              due: ledger.payablePaise,
+                              due: Money.ZERO,
+                              isAdvance: true,
                             })
                           }
-                          className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+                          className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-medium whitespace-nowrap text-slate-700 dark:border-slate-600 dark:text-slate-200"
                         >
-                          Pay
+                          {t('payAdvance')}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -232,21 +296,27 @@ export function WagesPage() {
               <tfoot className="border-t-2 border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800">
                 <tr className="font-medium text-slate-900 dark:text-slate-100">
                   <td className="p-3" colSpan={3}>
-                    Total
+                    {t('total')}
                   </td>
-                  <td className="p-3 text-right"><Amount paise={totals.earned} /></td>
-                  <td className="p-3 text-right"><Amount paise={totals.paid} /></td>
-                  <td className="p-3 text-right"><Amount paise={totals.payable} signed /></td>
+                  <td className="p-3 text-right">
+                    <Amount paise={totals.earned} />
+                  </td>
+                  <td className="p-3 text-right">
+                    <Amount paise={totals.paid} />
+                  </td>
+                  <td className="p-3 text-right">
+                    <Amount paise={totals.advance} />
+                  </td>
+                  <td className="p-3 text-right">
+                    <Amount paise={totals.payable} signed />
+                  </td>
                   <td></td>
                 </tr>
               </tfoot>
             </table>
           </div>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Every figure here is computed from attendance records by a deterministic function.
-            Nothing on this page is estimated.
-          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t('deterministicNote')}</p>
         </>
       )}
 
@@ -261,6 +331,7 @@ export function WagesPage() {
               amountPaise,
               method,
               reference,
+              isAdvance: paying.isAdvance,
             })
           }
           pending={pay.isPending}
@@ -270,18 +341,56 @@ export function WagesPage() {
   )
 }
 
+/**
+ * An outstanding advance is money the business is owed back. It gets its own
+ * column instead of being folded into a negative payable, where the minus sign
+ * is the only thing distinguishing it from an ordinary balance.
+ */
+function AdvanceCell({ ledger }: { ledger: LabourLedger }) {
+  const { t } = useTranslation()
+
+  if (ledger.advanceOutstandingPaise > 0) {
+    return (
+      <td className="p-3 text-right">
+        <Amount
+          paise={ledger.advanceOutstandingPaise}
+          className="text-blue-700 dark:text-blue-300"
+        />
+        <span className="block text-xs text-blue-600 dark:text-blue-400">
+          {t('advanceOutstanding')}
+        </span>
+      </td>
+    )
+  }
+
+  if (ledger.advanceRecoveredPaise > 0) {
+    return (
+      <td className="p-3 text-right text-slate-500">
+        <Amount paise={ledger.advanceRecoveredPaise} />
+        <span className="block text-xs text-slate-400">{t('advanceRecovered')}</span>
+      </td>
+    )
+  }
+
+  return <td className="p-3 text-right text-slate-300 dark:text-slate-600">&mdash;</td>
+}
+
 function PayForm({
   labour,
   onCancel,
   onSubmit,
   pending,
 }: {
-  labour: { name: string; due: Paise }
+  labour: PayTarget
   onCancel: () => void
   onSubmit: (amount: Paise, method: PaymentMethod, reference: string) => void
   pending: boolean
 }) {
-  const [amountInput, setAmountInput] = useState(String(labour.due / 100))
+  const { t } = useTranslation()
+  // An advance has no amount to suggest: nothing has been earned to base one on.
+  const [amountInput, setAmountInput] = useState(
+    labour.due > 0 ? String(Money.toRupees(labour.due)) : '',
+  )
   const [method, setMethod] = useState<PaymentMethod>('PHONEPE')
   const [reference, setReference] = useState('')
 
@@ -305,17 +414,38 @@ function PayForm({
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
       <p className="font-medium text-slate-900 dark:text-slate-100">
-        Pay {labour.name} &mdash; <Amount paise={labour.due} /> due
+        {labour.isAdvance ? t('advanceTitle') : t('pay')} &mdash; {labour.name}
+        {labour.due > 0 && (
+          <>
+            {' '}
+            &mdash; <Amount paise={labour.due} /> {t('due')}
+          </>
+        )}
       </p>
+
+      {labour.isAdvance && (
+        <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+          {t('advanceExplain')}
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
-          <span className={labelClass}>Amount</span>
-          <input value={amountInput} onChange={(e) => setAmountInput(e.target.value)} inputMode="decimal" className={inputClass} />
+          <span className={labelClass}>{t('amount')}</span>
+          <input
+            value={amountInput}
+            onChange={(e) => setAmountInput(e.target.value)}
+            inputMode="decimal"
+            className={inputClass}
+          />
         </label>
         <label className="block">
-          <span className={labelClass}>Method</span>
-          <select value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={inputClass}>
+          <span className={labelClass}>{t('method')}</span>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value as PaymentMethod)}
+            className={inputClass}
+          >
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>
                 {m.replace('_', ' ').toLowerCase()}
@@ -324,11 +454,11 @@ function PayForm({
           </select>
         </label>
         <label className="block">
-          <span className={labelClass}>Reference</span>
+          <span className={labelClass}>{t('reference')}</span>
           <input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            placeholder={method === 'PHONEPE' ? 'PhonePe txn ID' : 'Reference'}
+            placeholder={t('reference')}
             className={inputClass}
           />
         </label>
@@ -342,14 +472,11 @@ function PayForm({
 
       {ambiguous && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          A cash payment with no reference cannot be told apart from a repeat of itself later.
-          Add a note or receipt number if you can.
+          {t('cashNoReferenceWarning')}
         </p>
       )}
 
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        This records a payment you have already made. It does not send money.
-      </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{t('doesNotSendMoney')}</p>
 
       <div className="flex gap-3">
         <button
@@ -357,10 +484,14 @@ function PayForm({
           disabled={amount === null || amount <= 0 || pending}
           className="flex-1 rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
         >
-          {pending ? 'Recording…' : 'Record payment'}
+          {pending ? t('preparing') : t('recordPayment')}
         </button>
-        <button type="button" onClick={onCancel} className="rounded-xl border border-slate-300 px-5 py-3 font-medium dark:border-slate-600">
-          Cancel
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-xl border border-slate-300 px-5 py-3 font-medium dark:border-slate-600"
+        >
+          {t('cancel')}
         </button>
       </div>
     </form>

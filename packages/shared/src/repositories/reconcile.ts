@@ -49,7 +49,11 @@ export function createReconcileRepository(db: Firestore) {
      *
      * Reads but does not write - so an owner can look before committing.
      */
-    async preview(project: Pick<Project, 'id' | 'contractValuePaise'>, computedBy: string, at: Date) {
+    async preview(
+      project: Pick<Project, 'id' | 'contractValuePaise'>,
+      computedBy: string,
+      at: Date,
+    ) {
       const [bills, receipts, measurements, wages, labourPaid, allExpenses] = await Promise.all([
         (async () => {
           const snap = await getDocs(

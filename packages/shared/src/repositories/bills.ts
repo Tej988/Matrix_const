@@ -50,9 +50,7 @@ function toBill(id: string, d: Record<string, unknown>): Bill {
     netAmountPaise: (d['netAmountPaise'] as Paise) ?? (0 as Paise),
     amountReceivedPaise: (d['amountReceivedPaise'] as Paise) ?? (0 as Paise),
     status: (d['status'] as BillStatus) ?? 'DRAFT',
-    ...(d['cancellationReason']
-      ? { cancellationReason: d['cancellationReason'] as string }
-      : {}),
+    ...(d['cancellationReason'] ? { cancellationReason: d['cancellationReason'] as string } : {}),
   }
 }
 
@@ -280,9 +278,7 @@ export function createBillRepository(db: Firestore) {
           throw new Error('This bill is already cancelled')
         }
         if ((billSnap.data()['amountReceivedPaise'] as number) > 0) {
-          throw new Error(
-            'Money has been received against this bill. Reverse the payment first.',
-          )
+          throw new Error('Money has been received against this bill. Reverse the payment first.')
         }
 
         tx.update(doc(db, 'bills', bill.id), {

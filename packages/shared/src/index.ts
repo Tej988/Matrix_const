@@ -96,11 +96,7 @@ export {
   type ToolName,
 } from './ai/tools'
 
-export {
-  clientPaymentKey,
-  labourPaymentKey,
-  needsDisambiguation,
-} from './business/idempotency'
+export { clientPaymentKey, labourPaymentKey, needsDisambiguation } from './business/idempotency'
 
 export {
   computeProjectSummary,
@@ -110,5 +106,19 @@ export {
   type SummarySources,
   type SummaryDrift,
 } from './business/projectSummary'
+
+export {
+  parseBoqPaste,
+  parseUnit,
+  parseQuantity,
+  type BoqColumn,
+  type BoqImportOptions,
+  type BoqImportResult,
+  type BoqImportRow,
+  type BoqRowError,
+  type BoqRowWarning,
+  type ParsedBoqRow,
+  type RejectedBoqRow,
+} from './business/boqImport'
 
 export type { Paise, DateKey, Period } from '@mc/types'

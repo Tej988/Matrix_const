@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 import { NewProjectForm } from './NewProjectForm'
 
 const STATUS_TONE: Record<Project['status'], string> = {
@@ -21,6 +22,7 @@ const STATUS_TONE: Record<Project['status'], string> = {
 export function ProjectsPage() {
   const user = useCurrentUser()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createProjectRepository(db), [])
   const [adding, setAdding] = useState(false)
 
@@ -29,7 +31,7 @@ export function ProjectsPage() {
     queryFn: () => repo.listForUser(user.uid, user.role),
   })
 
-  if (projects.isPending) return <p className="p-4 text-slate-500">Loading projects…</p>
+  if (projects.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (projects.isError) {
     return (
       <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
@@ -40,9 +42,11 @@ export function ProjectsPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Projects</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            {t('projectsTitle')}
+          </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {projects.data.length} {projects.data.length === 1 ? 'project' : 'projects'}
+            {t('countProjects', { n: projects.data.length })}
           </p>
         </div>
         {can('project:write') && (
@@ -51,7 +55,7 @@ export function ProjectsPage() {
             onClick={() => setAdding((v) => !v)}
             className="rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
           >
-            {adding ? 'Cancel' : 'New project'}
+            {adding ? t('cancel') : t('newProject')}
           </button>
         )}
       </header>
@@ -61,9 +65,7 @@ export function ProjectsPage() {
       {projects.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
           <p className="text-slate-600 dark:text-slate-300">
-            {user.role === 'SUPERVISOR'
-              ? 'You have not been assigned to any project yet.'
-              : 'No projects yet.'}
+            {user.role === 'SUPERVISOR' ? t('notAssignedToProject') : t('noProjectsYet')}
           </p>
           {can('project:write') && !adding && (
             <button
@@ -71,7 +73,7 @@ export function ProjectsPage() {
               onClick={() => setAdding(true)}
               className="mt-4 rounded-xl bg-slate-900 px-5 py-3 font-medium text-white dark:bg-slate-100 dark:text-slate-900"
             >
-              Add the first project
+              {t('addFirstProject')}
             </button>
           )}
         </div>
@@ -102,7 +104,11 @@ export function ProjectsPage() {
                 {/* Supervisors never see money - spec section 20. */}
                 {can('financials:view') && (
                   <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-                    Contract <Amount paise={p.contractValuePaise} className="text-slate-900 dark:text-slate-100" />
+                    {t('contractValue')}{' '}
+                    <Amount
+                      paise={p.contractValuePaise}
+                      className="text-slate-900 dark:text-slate-100"
+                    />
                   </p>
                 )}
               </Link>
@@ -113,8 +119,7 @@ export function ProjectsPage() {
 
       {can('financials:view') && projects.data.length > 0 && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Total contract value across {projects.data.length}{' '}
-          {projects.data.length === 1 ? 'project' : 'projects'}:{' '}
+          {t('totalContractAcross', { n: projects.data.length })}{' '}
           <Amount
             paise={Money.sum(projects.data.map((p) => p.contractValuePaise))}
             className="font-medium text-slate-900 dark:text-slate-100"

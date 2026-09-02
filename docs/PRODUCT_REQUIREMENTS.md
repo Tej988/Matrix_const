@@ -47,28 +47,33 @@ about correctness and audit trails more than speed.
 Traced to the spec. **P0** = v1. **P1** = after Phase 11. **P2** = deferred with a reason.
 
 ### Projects and clients — §3, §44 Phase 3
+
 P0 · Client CRUD with contact details · Project CRUD with contract value and status · Project
 cards showing live financial position · Project team membership · Global search across
 projects, clients, labour, bill numbers, and payment references (§39).
 
 ### BOQ and rate card — §5
+
 P0 · Multiple BOQ items per project, each with unit, contract quantity, and rate · Automatic
 `contractAmount` · Configurable units · Running completed / remaining quantities. **No rate
 is ever hardcoded** (§5) — the Tata figures are seed data, not constants.
 
 ### Measurement book — §6
+
 P0 · Monthly measurements against BOQ items, with location and description · Automatic
 `quantity × rate` · Draft → Submitted → Approved → Rejected · Previous / current / total /
 remaining quantity · Overbilling prevention (§4) · Change orders with explicit approval ·
 Only approved measurements are billable.
 
 ### Billing — §7, §36
+
 P0 · Generate a bill from approved measurements · Sequential numbering per financial year ·
 Frozen line-item snapshots · Draft → Generated → Sent → Partially Paid → Paid → Cancelled ·
 Bill PDF (English — R-08) · No deletion, ever (ADR-007). P1 · GST and TDS on the fields
 already modelled (ADR-003).
 
 ### Client payments — §8, §9
+
 P0 · Manual entry with method, bank reference, and transaction ID · Payment ledger per
 project and client · Pending → Suggested → Confirmed → Rejected → Reversed · Confirmed
 payments alone count toward received · Duplicate prevention by idempotency key. P1 · Bank
@@ -77,6 +82,7 @@ statement CSV import, screenshot OCR — both entering as `SUGGESTED`, never aut
 access does not exist, so this needs the deferred mobile app.
 
 ### Labour — §10, §11, §12, §13
+
 P0 · Labour profiles with daily wage · Project assignment history, never a `projectId` on
 the labour record (§11) · Fast daily attendance with five statuses · **Offline attendance
 with automatic sync** · Duplicate prevention · Edit with a reason, by authorised roles only.
@@ -85,63 +91,73 @@ Attendance is the most-used screen in the product. One tap per labourer, whole r
 screen, no scrolling between saves, works from a cold offline start.
 
 ### Wages and labour payments — §14, §15
+
 P0 · Deterministic wage calculation from attendance (**never AI** — §51) · Configurable
 half-day factor · Wage periods that lock · Payments recorded against PhonePe, cash, or bank
 transfer with reference IDs · Earned / paid / payable per labourer. The app **records**
 PhonePe payments; it does not execute them (§15).
 
 ### Expenses — §16
+
 P0 · Project expenses across eight categories, with receipt reference.
 
 ### Financial summary and ledger — §17, §18
+
 P0 · Per-project summary with all three receivable-style quantities kept distinct (R-01) ·
 Append-only transaction ledger · Reversals rather than edits · Owner-run reconciliation
-(R-04). Nothing is labelled *profit* unless every cost is captured — §17 is explicit, and it
+(R-04). Nothing is labelled _profit_ unless every cost is captured — §17 is explicit, and it
 will not be.
 
 ### Reports — §37
+
 P0 · Project financial, labour, attendance, billing, payment, expense, outstanding · CSV
 export. P1 · PDF and Excel export, cash flow.
 
 ### Dashboard — §38
+
 P0 · Portfolio totals, project cards with live figures, today's attendance, pending bills and
 payments, a "needs attention" panel replacing the push notifications Spark cannot send
 (R-14).
 
 ### Language — §29
+
 P0 · Full English and Hindi (Devanagari) interface from Phase 1, translation keys only,
 persisted preference. Bill PDFs are English-only in v1 (R-08).
 
 ### Documents — §35
+
 P0 · Upload and link receipts, screenshots, quotations, and bill PDFs via Google Drive
 (ADR-009) · Metadata in Firestore · Graceful degradation when a file is unavailable.
 
 ### AI assistant — §30–§34
+
 P1, Phase 12+, gated on the Blaze decision (ADR-002) · Natural-language queries in Hindi,
 English, and Hinglish · Tool-calling against real data, never invented figures · Writes
 require explicit confirmation (§32). P2 · Voice (Phase 13, after the accuracy spike — R-09)
 · Document extraction (Phase 14).
 
 ### Users and security — §20, §25
+
 P0 · Google Sign-In · Five roles · Project-scoped access for supervisors · Security Rules on
 every collection · Audit log · No deletion of financial records.
 
 ### Backup — §41
+
 P0 · Manual JSON and CSV export, honestly labelled (R-15).
 
 ---
 
 ## 4. Non-functional
 
-| | Target |
-|---|---|
-| **Cost** | ₹0. No paid service without an ADR and approval (§54). |
-| **Performance** | Dashboard interactive < 2s on 4G, mid-range Android. Attendance marking < 200ms perceived. Bundle < 400 KB gzipped, routes lazy-loaded. |
-| **Offline** | Attendance fully functional with no connection. Reads served from cache. Financial writes fail honestly rather than appearing to succeed (R-02). |
-| **Correctness** | Integer paise throughout (ADR-004). 100% branch coverage on the business layer. Deterministic calculations, never AI (§51). |
-| **Security** | Default deny. Rules on every collection, tested per role. No secrets in the bundle (§47). |
+|                   | Target                                                                                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cost**          | ₹0. No paid service without an ADR and approval (§54).                                                                                                                                       |
+| **Performance**   | Dashboard interactive < 2s on 4G, mid-range Android. Attendance marking < 200ms perceived. Bundle < 400 KB gzipped, routes lazy-loaded.                                                      |
+| **Offline**       | Attendance fully functional with no connection. Reads served from cache. Financial writes fail honestly rather than appearing to succeed (R-02).                                             |
+| **Correctness**   | Integer paise throughout (ADR-004). 100% branch coverage on the business layer. Deterministic calculations, never AI (§51).                                                                  |
+| **Security**      | Default deny. Rules on every collection, tested per role. No secrets in the bundle (§47).                                                                                                    |
 | **Accessibility** | Minimum 44px touch targets, 16px base text, WCAG AA contrast, full keyboard navigation. §28's "large buttons, large readable text" is an accessibility requirement wearing business clothes. |
-| **Reliability** | No financial data loss. No silent failures. Every mutation audited. |
+| **Reliability**   | No financial data loss. No silent failures. Every mutation audited.                                                                                                                          |
 
 ---
 

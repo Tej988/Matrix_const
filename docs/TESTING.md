@@ -19,7 +19,7 @@ what we believe they deny.
 ```
 
 The pyramid is deliberately fat in the middle. Rules tests earn that place because, with no
-server, a Rules bug *is* the vulnerability — and unlike most security tests, they are fast
+server, a Rules bug _is_ the vulnerability — and unlike most security tests, they are fast
 and deterministic.
 
 The unit base is broad because `packages/shared/src/business` is pure by construction
@@ -30,13 +30,13 @@ under a second, which is what makes anyone actually run it.
 
 ## 2. Tooling
 
-| Layer | Tool |
-|---|---|
-| Unit, integration | Vitest |
-| Components | Testing Library + `jsdom` |
-| Rules | `@firebase/rules-unit-testing` against the Firestore emulator |
-| E2E | Playwright (Phase 15, optional) |
-| Coverage | `v8` |
+| Layer             | Tool                                                          |
+| ----------------- | ------------------------------------------------------------- |
+| Unit, integration | Vitest                                                        |
+| Components        | Testing Library + `jsdom`                                     |
+| Rules             | `@firebase/rules-unit-testing` against the Firestore emulator |
+| E2E               | Playwright (Phase 15, optional)                               |
+| Coverage          | `v8`                                                          |
 
 Gates: **100% branch coverage on `packages/shared/src/business`** — non-negotiable, it is
 the money — 80% on repositories, none enforced on UI. A coverage number on presentation code
@@ -58,7 +58,7 @@ guarantee ADR-004 exists to provide.
 boundary and fails one unit past it.
 
 **3 · Contract quantity cannot be exceeded.** Rejected with `EXCEEDS_CONTRACT_QTY` and the
-overage, unless `allowChangeOrder` is set with an approver (§4). *Also an integration test:*
+overage, unless `allowChangeOrder` is set with an approver (§4). _Also an integration test:_
 approval re-checks against the **live** `completedQty`, not the draft's snapshot — two
 concurrent measurements that individually fit but jointly overflow must see the second
 rejected (R-13).
@@ -67,7 +67,7 @@ rejected (R-13).
 `totalReceived` remain independent, and `receivable = ₹3,00,000` (§8's worked example).
 
 **5 · Client outstanding.** All three R-01 quantities asserted separately from one fixture:
-`receivable`, `unbilledBalance`, `contractRemaining`. A test asserts they are *not* equal on
+`receivable`, `unbilledBalance`, `contractRemaining`. A test asserts they are _not_ equal on
 the Tata fixture, which is precisely the confusion that produced R-01.
 
 **6 · Attendance totals.** Present / absent / half-day / leave / holiday counts over a
@@ -80,16 +80,16 @@ Re-run with `halfDayFactor: 0.75` to prove configurability (A4) rather than a ha
 yields a negative payable and a warning, not a clamp to zero — hiding it would hide a real
 error.
 
-**9 · Duplicate attendance prevention.** *Integration.* Marking the same project + labour +
+**9 · Duplicate attendance prevention.** _Integration._ Marking the same project + labour +
 date twice writes one document (ADR-006). Offline replay after reconnect is idempotent.
 
-**10 · Duplicate payment prevention.** *Integration.* The same `idempotencyKey` submitted
+**10 · Duplicate payment prevention.** _Integration._ The same `idempotencyKey` submitted
 twice creates one payment and increments `totalReceived` once. Simulated double-tap and
 retry-after-timeout.
 
-**11 · Permission checks.** *Rules.* See §4 below.
+**11 · Permission checks.** _Rules._ See §4 below.
 
-**12 · Financial audit logs.** *Integration.* Every mutating operation appends exactly one
+**12 · Financial audit logs.** _Integration._ Every mutating operation appends exactly one
 `auditLogs` entry **inside** its transaction. A rolled-back transaction leaves none — the
 failure mode `API_AND_SERVICES.md` §6 warns about.
 
@@ -104,18 +104,19 @@ in CI instead of in your father's dashboard.
 
 ## 4. Rules tests
 
-For every collection, for every role, for every operation — and the *denials* matter more
+For every collection, for every role, for every operation — and the _denials_ matter more
 than the permissions:
 
 ```ts
 describe('clientPayments', () => {
-  it('SUPERVISOR cannot read',        () => assertFails(sup.get(paymentRef)))
-  it('ACCOUNTANT can create',         () => assertSucceeds(acc.set(paymentRef, valid)))
-  it('rejects negative amount',       () => assertFails(acc.set(paymentRef, { ...valid, amountPaise: -1 })))
-  it('rejects float paise',           () => assertFails(acc.set(paymentRef, { ...valid, amountPaise: 10.5 })))
-  it('rejects amount change',         () => assertFails(acc.update(paymentRef, { amountPaise: 999 })))
-  it('OWNER cannot delete',           () => assertFails(owner.delete(paymentRef)))
-  it('disabled user cannot read',     () => assertFails(disabled.get(paymentRef)))
+  it('SUPERVISOR cannot read', () => assertFails(sup.get(paymentRef)))
+  it('ACCOUNTANT can create', () => assertSucceeds(acc.set(paymentRef, valid)))
+  it('rejects negative amount', () =>
+    assertFails(acc.set(paymentRef, { ...valid, amountPaise: -1 })))
+  it('rejects float paise', () => assertFails(acc.set(paymentRef, { ...valid, amountPaise: 10.5 })))
+  it('rejects amount change', () => assertFails(acc.update(paymentRef, { amountPaise: 999 })))
+  it('OWNER cannot delete', () => assertFails(owner.delete(paymentRef)))
+  it('disabled user cannot read', () => assertFails(disabled.get(paymentRef)))
 })
 ```
 
@@ -164,6 +165,6 @@ Stated so its absence is a decision, not an oversight:
 No phase closes until: lint clean, typecheck clean, all unit tests pass, all rules tests
 pass, the build succeeds, and the phase's own critical tests from §42 exist and pass.
 
-§43 is unambiguous — *do not move to the next major phase if the current phase is broken* —
+§43 is unambiguous — _do not move to the next major phase if the current phase is broken_ —
 and the practical reading is that a red test at the end of Phase 5 is a Phase 5 problem, not
 a Phase 6 inheritance.

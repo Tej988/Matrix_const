@@ -1,0 +1,8 @@
+# The original product specification. It is an input to this project, not
+# output of it - reformatting it would rewrite the user's own document.
+prompt.md
+
+dist/
+coverage/
+node_modules/
+package-lock.json

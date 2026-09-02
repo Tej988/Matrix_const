@@ -47,6 +47,25 @@ describe('supervisor - the most restricted writing role', () => {
     expect(canInProject('SUPERVISOR', 'measurement:create', false)).toBe(false)
   })
 
+  it('confines ONLY supervisors - other roles ignore membership entirely', () => {
+    // An admin or accountant works across all projects; passing isMember:false
+    // must not restrict them, or the office could not act on a site they are
+    // not personally rostered to.
+    for (const role of ['OWNER', 'ADMIN', 'ACCOUNTANT', 'VIEWER'] as Role[]) {
+      for (const permission of ['project:read', 'report:read'] as const) {
+        if (!can(role, permission)) continue
+        expect(canInProject(role, permission, false)).toBe(true)
+        expect(canInProject(role, permission, true)).toBe(true)
+      }
+    }
+  })
+
+  it('leaves non-project-scoped permissions unrestricted even for a supervisor', () => {
+    // client:read is granted to supervisors but is not project-scoped, so
+    // membership is irrelevant to it.
+    expect(canInProject('SUPERVISOR', 'client:read', false)).toBe(true)
+  })
+
   it('is not granted a permission by membership alone', () => {
     // Membership widens scope; it never adds a permission the role lacks.
     expect(canInProject('SUPERVISOR', 'measurement:approve', true)).toBe(false)
@@ -160,8 +179,6 @@ describe('invariants across every role', () => {
   })
 
   it('exposes money only to the roles that need it', () => {
-    expect(ROLES.filter(canSeeMoney).sort()).toEqual(
-      ['ACCOUNTANT', 'ADMIN', 'OWNER', 'VIEWER'],
-    )
+    expect(ROLES.filter(canSeeMoney).sort()).toEqual(['ACCOUNTANT', 'ADMIN', 'OWNER', 'VIEWER'])
   })
 })

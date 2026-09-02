@@ -5,6 +5,18 @@ import { signOut } from '../lib/auth'
 import { useTranslation } from '../i18n/useTranslation'
 import { Tour } from '../features/tour/Tour'
 import type { StringKey } from '../i18n/strings'
+import {
+  IconDashboard,
+  IconAttendance,
+  IconProject,
+  IconLabour,
+  IconWages,
+  IconReport,
+  IconClient,
+  IconUsers,
+  IconSettings,
+  type Icon,
+} from '../components/icons'
 
 /**
  * The shell. Navigation is derived from permissions, so a supervisor simply
@@ -18,20 +30,25 @@ import type { StringKey } from '../i18n/strings'
 interface NavItem {
   to: string
   labelKey: StringKey
-  icon: string
+  Icon: Icon
   permission?: Permission
 }
 
 const NAV: NavItem[] = [
-  { to: '/', labelKey: 'navDashboard', icon: '📊' },
-  { to: '/attendance', labelKey: 'navAttendance', icon: '📅', permission: 'attendance:write' },
-  { to: '/projects', labelKey: 'navProjects', icon: '🏗️', permission: 'project:read' },
-  { to: '/labour', labelKey: 'navLabour', icon: '👷', permission: 'labour:read' },
-  { to: '/wages', labelKey: 'navWages', icon: '💰', permission: 'wage:read' },
-  { to: '/reports', labelKey: 'navReports', icon: '📄', permission: 'report:read' },
-  { to: '/clients', labelKey: 'navClients', icon: '🤝', permission: 'client:read' },
-  { to: '/users', labelKey: 'navUsers', icon: '👥', permission: 'user:manage' },
-  { to: '/settings', labelKey: 'navSettings', icon: '⚙️' },
+  { to: '/', labelKey: 'navDashboard', Icon: IconDashboard },
+  {
+    to: '/attendance',
+    labelKey: 'navAttendance',
+    Icon: IconAttendance,
+    permission: 'attendance:write',
+  },
+  { to: '/projects', labelKey: 'navProjects', Icon: IconProject, permission: 'project:read' },
+  { to: '/labour', labelKey: 'navLabour', Icon: IconLabour, permission: 'labour:read' },
+  { to: '/wages', labelKey: 'navWages', Icon: IconWages, permission: 'wage:read' },
+  { to: '/reports', labelKey: 'navReports', Icon: IconReport, permission: 'report:read' },
+  { to: '/clients', labelKey: 'navClients', Icon: IconClient, permission: 'client:read' },
+  { to: '/users', labelKey: 'navUsers', Icon: IconUsers, permission: 'user:manage' },
+  { to: '/settings', labelKey: 'navSettings', Icon: IconSettings },
 ]
 
 export function AppShell() {
@@ -90,7 +107,7 @@ export function AppShell() {
                   ].join(' ')
                 }
               >
-                <span aria-hidden="true">{item.icon}</span>
+                <item.Icon className="size-[18px] shrink-0" />
                 {t(item.labelKey)}
               </NavLink>
             ))}

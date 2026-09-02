@@ -30,14 +30,17 @@ export interface ToolDefinition {
   permission: Permission
   /** Whether results must be filtered to the user's assigned projects. */
   projectScoped: boolean
-  parameters: Record<string, { type: 'string' | 'number' | 'boolean'; required: boolean; description: string }>
+  parameters: Record<
+    string,
+    { type: 'string' | 'number' | 'boolean'; required: boolean; description: string }
+  >
 }
 
-const p = (
-  type: 'string' | 'number' | 'boolean',
-  required: boolean,
-  description: string,
-) => ({ type, required, description })
+const p = (type: 'string' | 'number' | 'boolean', required: boolean, description: string) => ({
+  type,
+  required,
+  description,
+})
 
 export const AI_TOOLS: readonly ToolDefinition[] = [
   {
@@ -169,10 +172,7 @@ export const WRITE_PROPOSAL_TOOLS = AI_TOOLS.filter((t) => t.kind === 'PROPOSE_W
  * by asking the model to respect a role. A model can be talked out of a rule;
  * a permission check cannot.
  */
-export function canUseTool(
-  toolName: string,
-  holds: (permission: Permission) => boolean,
-): boolean {
+export function canUseTool(toolName: string, holds: (permission: Permission) => boolean): boolean {
   const tool = toolByName(toolName)
   if (!tool) return false
   return holds(tool.permission)

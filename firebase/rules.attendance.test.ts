@@ -88,7 +88,10 @@ beforeEach(async () => {
       defaultDailyWagePaise: 70000,
       status: 'ACTIVE',
     })
-    await setDoc(doc(db, 'attendance', `${PROJ_A}_${LAB}_2026-08-20`), record({ dateKey: '2026-08-20' }))
+    await setDoc(
+      doc(db, 'attendance', `${PROJ_A}_${LAB}_2026-08-20`),
+      record({ dateKey: '2026-08-20' }),
+    )
     await setDoc(
       doc(db, 'attendance', `${PROJ_A}_${LAB}_2026-08-19`),
       record({ dateKey: '2026-08-19', wagePeriodId: 'wp-1' }),
@@ -104,17 +107,18 @@ describe('marking attendance', () => {
   })
 
   it('denies a supervisor on a project they are not on', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_B), 'attendance', goodId), record({ markedBy: SUP_B })),
-    )
+    await assertFails(setDoc(doc(as(SUP_B), 'attendance', goodId), record({ markedBy: SUP_B })))
   })
 
   it('lets owner and admin mark anywhere', async () => {
     await assertSucceeds(
-      setDoc(doc(as(OWNER), 'attendance', `${PROJ_B}_${LAB}_${DAY}`), record({
-        projectId: PROJ_B,
-        markedBy: OWNER,
-      })),
+      setDoc(
+        doc(as(OWNER), 'attendance', `${PROJ_B}_${LAB}_${DAY}`),
+        record({
+          projectId: PROJ_B,
+          markedBy: OWNER,
+        }),
+      ),
     )
   })
 
@@ -132,9 +136,7 @@ describe('the deterministic ID is enforced', () => {
   })
 
   it('refuses an ID with the wrong date', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_A), 'attendance', `${PROJ_A}_${LAB}_2026-01-01`), record()),
-    )
+    await assertFails(setDoc(doc(as(SUP_A), 'attendance', `${PROJ_A}_${LAB}_2026-01-01`), record()))
   })
 
   it('refuses an ID with the wrong labourer', async () => {
@@ -154,9 +156,7 @@ describe('the deterministic ID is enforced', () => {
 
 describe('validation', () => {
   it('rejects an unknown status', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_A), 'attendance', goodId), record({ status: 'MAYBE' })),
-    )
+    await assertFails(setDoc(doc(as(SUP_A), 'attendance', goodId), record({ status: 'MAYBE' })))
   })
 
   it('rejects a float rate', async () => {
@@ -166,9 +166,7 @@ describe('validation', () => {
   })
 
   it('rejects a record attributed to someone else', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_A), 'attendance', goodId), record({ markedBy: OWNER })),
-    )
+    await assertFails(setDoc(doc(as(SUP_A), 'attendance', goodId), record({ markedBy: OWNER })))
   })
 })
 
@@ -176,19 +174,13 @@ describe('editing', () => {
   const existing = `${PROJ_A}_${LAB}_2026-08-20`
 
   it('lets a supervisor correct a mistake on their project', async () => {
-    await assertSucceeds(
-      updateDoc(doc(as(SUP_A), 'attendance', existing), { status: 'HALF_DAY' }),
-    )
+    await assertSucceeds(updateDoc(doc(as(SUP_A), 'attendance', existing), { status: 'HALF_DAY' }))
   })
 
   it('refuses to move a record to another labourer or day', async () => {
     await assertFails(updateDoc(doc(as(OWNER), 'attendance', existing), { labourId: 'other' }))
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'attendance', existing), { dateKey: '2026-08-21' }),
-    )
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'attendance', existing), { projectId: PROJ_B }),
-    )
+    await assertFails(updateDoc(doc(as(OWNER), 'attendance', existing), { dateKey: '2026-08-21' }))
+    await assertFails(updateDoc(doc(as(OWNER), 'attendance', existing), { projectId: PROJ_B }))
   })
 })
 

@@ -150,9 +150,7 @@ describe('formatting', () => {
   })
 
   it('renders a crore amount', () => {
-    expect(formatPaiseInWords(fromRupees(1_25_00_000))).toBe(
-      'one crore twenty-five lakh rupees',
-    )
+    expect(formatPaiseInWords(fromRupees(1_25_00_000))).toBe('one crore twenty-five lakh rupees')
   })
 
   it('renders a negative amount', () => {

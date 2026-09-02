@@ -35,7 +35,7 @@ describe('formula injection is defanged', () => {
   })
 
   it('escapes a real-world attack payload', () => {
-    const payload = '=cmd|\' /C calc\'!A0'
+    const payload = "=cmd|' /C calc'!A0"
     const out = csvCell(payload)
     expect(out.startsWith("'")).toBe(true)
     expect(out.startsWith('=')).toBe(false)

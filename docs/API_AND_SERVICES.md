@@ -140,7 +140,7 @@ CI rather than in production.
 ```ts
 interface Repository<T> {
   getById(id: string): Promise<T | null>
-  list(query: BoundedQuery): Promise<Page<T>>     // always limited + cursored (R-10)
+  list(query: BoundedQuery): Promise<Page<T>> // always limited + cursored (R-10)
   create(input: CreateInput<T>, ctx: AuthContext): Promise<string>
   update(id: string, patch: UpdateInput<T>, ctx: AuthContext): Promise<void>
 }
@@ -199,9 +199,9 @@ type AppError =
   | { kind: 'PERMISSION_DENIED'; action: string }
   | { kind: 'VALIDATION'; field: string; message: string }
   | { kind: 'DUPLICATE'; idempotencyKey: string }
-  | { kind: 'CONFLICT'; message: string }        // e.g. quantity changed during approval
-  | { kind: 'QUOTA_EXCEEDED' }                   // R-10, surfaced honestly
-  | { kind: 'STORAGE_UNAVAILABLE' }              // Drive token expired — ADR-009
+  | { kind: 'CONFLICT'; message: string } // e.g. quantity changed during approval
+  | { kind: 'QUOTA_EXCEEDED' } // R-10, surfaced honestly
+  | { kind: 'STORAGE_UNAVAILABLE' } // Drive token expired — ADR-009
   | { kind: 'UNKNOWN'; cause: unknown }
 ```
 
@@ -216,7 +216,7 @@ the payment record it was attached to.
 interface StorageAdapter {
   upload(input: { file: File; kind: DocumentKind; projectId: string }): Promise<StoredFileRef>
   getViewUrl(ref: StoredFileRef): Promise<string>
-  delete(ref: StoredFileRef): Promise<void>     // metadata tombstone for financial documents
+  delete(ref: StoredFileRef): Promise<void> // metadata tombstone for financial documents
 }
 ```
 

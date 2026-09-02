@@ -89,9 +89,7 @@ describe('entry', () => {
   })
 
   it('denies a supervisor on a project they are not assigned to', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_B), 'measurements', 'm-new2'), sheet({ enteredBy: SUP_B })),
-    )
+    await assertFails(setDoc(doc(as(SUP_B), 'measurements', 'm-new2'), sheet({ enteredBy: SUP_B })))
   })
 
   it('refuses a measurement created as already approved', async () => {
@@ -105,9 +103,7 @@ describe('entry', () => {
   })
 
   it('refuses a sheet attributed to someone else', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP_A), 'measurements', 'm-x'), sheet({ enteredBy: OWNER })),
-    )
+    await assertFails(setDoc(doc(as(SUP_A), 'measurements', 'm-x'), sheet({ enteredBy: OWNER })))
   })
 
   it('denies an accountant entering measurements', async () => {
@@ -143,16 +139,12 @@ describe('approval - the separation of duty', () => {
   })
 
   it('refuses to approve a sheet that was never submitted', async () => {
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'measurements', 'm-draft'), { status: 'APPROVED' }),
-    )
+    await assertFails(updateDoc(doc(as(OWNER), 'measurements', 'm-draft'), { status: 'APPROVED' }))
   })
 
   it('treats approval as final - it cannot be reopened', async () => {
     for (const status of ['DRAFT', 'SUBMITTED', 'REJECTED']) {
-      await assertFails(
-        updateDoc(doc(as(OWNER), 'measurements', 'm-approved'), { status }),
-      )
+      await assertFails(updateDoc(doc(as(OWNER), 'measurements', 'm-approved'), { status }))
     }
   })
 })
@@ -165,9 +157,7 @@ describe('submission', () => {
   })
 
   it('denies a supervisor from another project', async () => {
-    await assertFails(
-      updateDoc(doc(as(SUP_B), 'measurements', 'm-draft'), { status: 'SUBMITTED' }),
-    )
+    await assertFails(updateDoc(doc(as(SUP_B), 'measurements', 'm-draft'), { status: 'SUBMITTED' }))
   })
 })
 

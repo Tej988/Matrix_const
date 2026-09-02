@@ -107,7 +107,9 @@ export function AttendancePage() {
 
   if (projects.isPending) return <p className="p-4 text-slate-500">Loading…</p>
   if (projects.isError) {
-    return <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+    return (
+      <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+    )
   }
 
   if (projects.data.length === 0) {
@@ -174,7 +176,10 @@ export function AttendancePage() {
       </div>
 
       {!markable && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
+        >
           {t('futureDate')}
         </p>
       )}
@@ -186,9 +191,7 @@ export function AttendancePage() {
 
       {roster.data && roster.data.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">
-            {t('noLabourAssigned')}
-          </p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noLabourAssigned')}</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Assign them from the Labour page.
           </p>

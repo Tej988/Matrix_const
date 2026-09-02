@@ -8,10 +8,12 @@ import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 
 export function LabourPage() {
   const user = useCurrentUser()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createLabourRepository(db), [])
   const projectRepo = useMemo(() => createProjectRepository(db), [])
   const queryClient = useQueryClient()
@@ -24,7 +26,7 @@ export function LabourPage() {
     queryFn: () => projectRepo.listForUser(user.uid, user.role),
   })
 
-  if (labour.isPending) return <p className="p-4 text-slate-500">Loading…</p>
+  if (labour.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (labour.isError) {
     return <QueryError error={labour.error} onRetry={() => void labour.refetch()} what="labour" />
   }
@@ -35,9 +37,11 @@ export function LabourPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Labour</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            {t('labourTitle')}
+          </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {labour.data.length} {labour.data.length === 1 ? 'person' : 'people'}
+            {t('countPeople', { n: labour.data.length })}
           </p>
         </div>
         {can('labour:write') && (
@@ -46,7 +50,7 @@ export function LabourPage() {
             onClick={() => setAdding((v) => !v)}
             className="rounded-xl bg-slate-900 px-5 py-3 font-medium text-white dark:bg-slate-100 dark:text-slate-900"
           >
-            {adding ? 'Cancel' : 'Add person'}
+            {adding ? t('cancel') : t('addPerson')}
           </button>
         )}
       </header>
@@ -73,7 +77,7 @@ export function LabourPage() {
 
       {labour.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No labourers yet.</p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noLabourYet')}</p>
         </div>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
@@ -84,12 +88,12 @@ export function LabourPage() {
                 <p className="truncate text-sm text-slate-500 dark:text-slate-400">
                   {l.role.replace('_', ' ').toLowerCase()}
                   {l.phone && ` · ${l.phone}`}
-                  {l.status === 'INACTIVE' && ' · inactive'}
+                  {l.status === 'INACTIVE' && ` · ${t('inactive')}`}
                 </p>
               </div>
               {showMoney && (
                 <span className="text-sm text-slate-600 dark:text-slate-300">
-                  <Amount paise={l.defaultDailyWagePaise} /> / day
+                  <Amount paise={l.defaultDailyWagePaise} /> {t('perDay')}
                 </span>
               )}
               {can('labour:write') && (
@@ -98,7 +102,7 @@ export function LabourPage() {
                   onClick={() => setAssigning(l)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                 >
-                  Assign
+                  {t('assign')}
                 </button>
               )}
             </li>
@@ -106,16 +110,14 @@ export function LabourPage() {
         </ul>
       )}
 
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        Only name, phone, role and wage are stored. No Aadhaar or ID documents &mdash; this
-        system has no reason to hold them.
-      </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{t('privacyNote')}</p>
     </div>
   )
 }
 
 function AddLabourForm({ onDone }: { onDone: () => void }) {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const repo = useMemo(() => createLabourRepository(db), [])
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -131,7 +133,7 @@ function AddLabourForm({ onDone }: { onDone: () => void }) {
 
   const create = useMutation({
     mutationFn: () => {
-      if (!wage) throw new Error('Enter a daily wage')
+      if (!wage) throw new Error(t('enterDailyWage'))
       return repo.create(
         {
           name: name.trim(),
@@ -156,16 +158,30 @@ function AddLabourForm({ onDone }: { onDone: () => void }) {
       className="grid gap-4 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 dark:border-slate-700"
     >
       <label className="block">
-        <span className={labelClass}>Name</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ramesh" className={inputClass} />
+        <span className={labelClass}>{t('name')}</span>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ramesh"
+          className={inputClass}
+        />
       </label>
       <label className="block">
-        <span className={labelClass}>Phone (optional)</span>
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" className={inputClass} />
+        <span className={labelClass}>{`${t('phone')} (${t('optional')})`}</span>
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          inputMode="tel"
+          className={inputClass}
+        />
       </label>
       <label className="block">
-        <span className={labelClass}>Work</span>
-        <select value={role} onChange={(e) => setRole(e.target.value as LabourRole)} className={inputClass}>
+        <span className={labelClass}>{t('work')}</span>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as LabourRole)}
+          className={inputClass}
+        >
           {LABOUR_ROLES.map((r) => (
             <option key={r} value={r}>
               {r.replace('_', ' ').toLowerCase()}
@@ -174,7 +190,7 @@ function AddLabourForm({ onDone }: { onDone: () => void }) {
         </select>
       </label>
       <label className="block">
-        <span className={labelClass}>Daily wage</span>
+        <span className={labelClass}>{t('dailyWage')}</span>
         <input
           value={wageInput}
           onChange={(e) => setWageInput(e.target.value)}
@@ -184,7 +200,7 @@ function AddLabourForm({ onDone }: { onDone: () => void }) {
         />
         {wage !== null && (
           <span className="mt-1 block text-sm text-slate-500">
-            <Amount paise={wage} /> per day
+            <Amount paise={wage} /> {t('perDay')}
           </span>
         )}
       </label>
@@ -198,7 +214,7 @@ function AddLabourForm({ onDone }: { onDone: () => void }) {
         disabled={name.trim() === '' || wage === null || create.isPending}
         className="rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 sm:col-span-2 dark:bg-slate-100 dark:text-slate-900"
       >
-        {create.isPending ? 'Adding…' : 'Add person'}
+        {create.isPending ? t('adding') : t('addPerson')}
       </button>
     </form>
   )
@@ -214,6 +230,7 @@ function AssignForm({
   onDone: () => void
 }) {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const repo = useMemo(() => createLabourRepository(db), [])
   const [projectId, setProjectId] = useState(projects[0]?.id ?? '')
   const [rateInput, setRateInput] = useState(String(labour.defaultDailyWagePaise / 100))
@@ -227,7 +244,7 @@ function AssignForm({
 
   const assign = useMutation({
     mutationFn: () => {
-      if (!rate || !projectId) throw new Error('Choose a project and rate')
+      if (!rate || !projectId) throw new Error(t('chooseProjectAndRate'))
       return repo.assign(
         { labour, projectId, startDate: Dates.todayKey(), dailyRatePaise: rate },
         user.uid,
@@ -244,11 +261,17 @@ function AssignForm({
       }}
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
-      <p className="font-medium text-slate-900 dark:text-slate-100">Assign {labour.name}</p>
+      <p className="font-medium text-slate-900 dark:text-slate-100">
+        {t('assign')} {labour.name}
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className={labelClass}>Project</span>
-          <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className={inputClass}>
+          <span className={labelClass}>{t('project')}</span>
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className={inputClass}
+          >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -257,7 +280,7 @@ function AssignForm({
           </select>
         </label>
         <label className="block">
-          <span className={labelClass}>Rate on this project</span>
+          <span className={labelClass}>{t('rateOnProject')}</span>
           <input
             value={rateInput}
             onChange={(e) => setRateInput(e.target.value)}
@@ -266,15 +289,13 @@ function AssignForm({
           />
         </label>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        The rate can differ per project. Attendance snapshots whichever rate applies on the day.
-      </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{t('rateVariesHint')}</p>
       <button
         type="submit"
         disabled={assign.isPending || !rate}
         className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
       >
-        {assign.isPending ? 'Assigning…' : 'Assign to project'}
+        {assign.isPending ? t('assigning') : t('assignTo')}
       </button>
     </form>
   )

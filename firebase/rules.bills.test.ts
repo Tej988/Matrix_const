@@ -134,9 +134,7 @@ describe('generating', () => {
 
 describe('immutability of issued amounts', () => {
   it('refuses to change the bill number', async () => {
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'bills', 'bill-1'), { billNumber: 'MC/26-27/9999' }),
-    )
+    await assertFails(updateDoc(doc(as(OWNER), 'bills', 'bill-1'), { billNumber: 'MC/26-27/9999' }))
   })
 
   it('refuses to change the net amount', async () => {
@@ -165,9 +163,7 @@ describe('cancellation', () => {
   })
 
   it('denies an accountant cancelling', async () => {
-    await assertFails(
-      updateDoc(doc(as(ACCOUNTANT), 'bills', 'bill-1'), { status: 'CANCELLED' }),
-    )
+    await assertFails(updateDoc(doc(as(ACCOUNTANT), 'bills', 'bill-1'), { status: 'CANCELLED' }))
   })
 
   it('never resurrects a cancelled bill', async () => {
@@ -204,8 +200,6 @@ describe('bill number counters', () => {
   })
 
   it('denies a supervisor touching the counter', async () => {
-    await assertFails(
-      setDoc(doc(as(SUP), 'counters', 'billNumber_26-27'), { current: 999 }),
-    )
+    await assertFails(setDoc(doc(as(SUP), 'counters', 'billNumber_26-27'), { current: 999 }))
   })
 })

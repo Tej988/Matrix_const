@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { fromRupees } from '../money/index'
-import {
-  calculateOutstanding,
-  headlineAmount,
-  isOverBilled,
-  isOverPaid,
-} from './outstanding'
+import { calculateOutstanding, headlineAmount, isOverBilled, isOverPaid } from './outstanding'
 
 /** Spec section 42, critical tests 4 and 5. */
 

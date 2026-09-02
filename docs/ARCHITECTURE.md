@@ -55,22 +55,22 @@ aspirational.
 
 ## 2. Stack
 
-| Concern | Choice | Why |
-|---|---|---|
-| Language | TypeScript 5.x, `strict: true` | §50 demands strong types. `strict` is non-negotiable in a financial system. |
-| UI | React 19 | Spec §26. |
-| Build | Vite 6 | Fast, first-class PWA plugin, trivial Firebase Hosting output. |
-| Styling | Tailwind CSS 4 | Spec §26. Large-touch-target utilities suit §28. |
-| Routing | React Router 7 | Data-router mode for route-level auth guards. |
-| Server state | TanStack Query 5 | Caching, retries, and offline mutation queueing — the hard parts of R-02, solved. |
-| Client state | Zustand | Tiny. Only locale, auth session, and UI shell state. |
-| Forms | React Hook Form + Zod | Zod schemas live in `packages/validation` and are shared with tests and Rules generation. |
-| i18n | i18next + react-i18next | §29. `en` and `hi` JSON, keys never literals. |
-| Dates | date-fns + date-fns-tz | IST anchoring (R-12). |
-| PDF | pdfmake | Client-side, no server. §36. English-only in v1 (R-08). |
-| Charts | Recharts | Reports (§37). Lazy-loaded. |
-| Tests | Vitest + Testing Library + `@firebase/rules-unit-testing` | §42. |
-| Monorepo | npm workspaces | ADR-008. |
+| Concern      | Choice                                                    | Why                                                                                       |
+| ------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Language     | TypeScript 5.x, `strict: true`                            | §50 demands strong types. `strict` is non-negotiable in a financial system.               |
+| UI           | React 19                                                  | Spec §26.                                                                                 |
+| Build        | Vite 6                                                    | Fast, first-class PWA plugin, trivial Firebase Hosting output.                            |
+| Styling      | Tailwind CSS 4                                            | Spec §26. Large-touch-target utilities suit §28.                                          |
+| Routing      | React Router 7                                            | Data-router mode for route-level auth guards.                                             |
+| Server state | TanStack Query 5                                          | Caching, retries, and offline mutation queueing — the hard parts of R-02, solved.         |
+| Client state | Zustand                                                   | Tiny. Only locale, auth session, and UI shell state.                                      |
+| Forms        | React Hook Form + Zod                                     | Zod schemas live in `packages/validation` and are shared with tests and Rules generation. |
+| i18n         | i18next + react-i18next                                   | §29. `en` and `hi` JSON, keys never literals.                                             |
+| Dates        | date-fns + date-fns-tz                                    | IST anchoring (R-12).                                                                     |
+| PDF          | pdfmake                                                   | Client-side, no server. §36. English-only in v1 (R-08).                                   |
+| Charts       | Recharts                                                  | Reports (§37). Lazy-loaded.                                                               |
+| Tests        | Vitest + Testing Library + `@firebase/rules-unit-testing` | §42.                                                                                      |
+| Monorepo     | npm workspaces                                            | ADR-008.                                                                                  |
 
 **Deliberately excluded:** Redux (overkill), any component library (§28 wants large, plain,
 obvious controls, and MUI/Chakra fight that while inflating the bundle), any ORM, and any
@@ -197,14 +197,14 @@ see below.
 §13 is emphatic: do not lose attendance to a network failure. But Firestore transactions
 require a connection (R-02), so writes are split by tolerance.
 
-| Class | Offline behaviour | Why |
-|---|---|---|
-| **Reads** | Served from IndexedDB cache | `persistentLocalCache` with multi-tab manager |
-| **Attendance writes** | ✅ Queued, sync on reconnect | Plain `setDoc`, deterministic ID (ADR-006) makes replay idempotent |
-| **Financial writes** | ❌ Blocked with a clear message | Cannot be made atomic offline. Better to refuse than to appear to succeed |
-| **File uploads** | ❌ Deferred; the record still saves | An attachment must never fail a payment (ADR-009) |
+| Class                 | Offline behaviour                   | Why                                                                       |
+| --------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| **Reads**             | Served from IndexedDB cache         | `persistentLocalCache` with multi-tab manager                             |
+| **Attendance writes** | ✅ Queued, sync on reconnect        | Plain `setDoc`, deterministic ID (ADR-006) makes replay idempotent        |
+| **Financial writes**  | ❌ Blocked with a clear message     | Cannot be made atomic offline. Better to refuse than to appear to succeed |
+| **File uploads**      | ❌ Deferred; the record still saves | An attachment must never fail a payment (ADR-009)                         |
 
-The attendance screen is built to be the *only* screen a supervisor needs with no signal: a
+The attendance screen is built to be the _only_ screen a supervisor needs with no signal: a
 project's labour roster is prefetched and cached on first load, so marking works from a
 cold, offline start. A persistent header shows `Online` / `Offline — N pending`, and the
 count only clears on confirmed server acknowledgement.
@@ -248,7 +248,7 @@ is read aloud in either language. Preference persists to `users/{uid}.locale` an
 
 ## 9. PWA
 
-`vite-plugin-pwa` with Workbox. App shell precached; Firestore data is *not* cached by the
+`vite-plugin-pwa` with Workbox. App shell precached; Firestore data is _not_ cached by the
 service worker — Firestore's own IndexedDB layer owns that, and duplicating it causes stale
 reads. Manifest is `display: standalone`, portrait, with maskable icons. An in-app "Install
 on this phone" prompt appears for supervisors, since Chrome's own prompt is easy to miss.

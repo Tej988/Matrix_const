@@ -16,9 +16,7 @@ export const paiseSchema = z
 
 export const positivePaiseSchema = paiseSchema.positive('Amount must be greater than zero')
 
-export const dateKeySchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date')
+export const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date')
 
 export const periodSchema = z.string().regex(/^\d{4}-\d{2}$/, 'Expected a YYYY-MM period')
 

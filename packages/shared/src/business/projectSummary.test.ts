@@ -138,10 +138,7 @@ describe('drift detection - R-04', () => {
     const drift = detectDrift(stale, derived)
 
     expect(drift).toHaveLength(2)
-    expect(drift.map((d) => d.field).sort()).toEqual([
-      'receivablePaise',
-      'totalReceivedPaise',
-    ])
+    expect(drift.map((d) => d.field).sort()).toEqual(['receivablePaise', 'totalReceivedPaise'])
 
     const received = drift.find((d) => d.field === 'totalReceivedPaise')
     expect(received?.stored).toBe(fromRupees(9_00_000))

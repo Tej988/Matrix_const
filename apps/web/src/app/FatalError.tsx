@@ -46,8 +46,8 @@ export function FatalError({
         <p className="font-medium">Things worth checking:</p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>
-            Is Google sign-in enabled in the Firebase console under Authentication &rarr;
-            Sign-in method?
+            Is Google sign-in enabled in the Firebase console under Authentication &rarr; Sign-in
+            method?
           </li>
           <li>
             Does <code>apps/web/.env.local</code> match the current Firebase project?

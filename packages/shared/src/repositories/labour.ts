@@ -159,11 +159,7 @@ export function createAttendanceRepository(db: Firestore) {
       return snap.docs.map((d) => toAttendance(d.id, d.data()))
     },
 
-    async forLabourInRange(
-      labourId: string,
-      from: DateKey,
-      to: DateKey,
-    ): Promise<Attendance[]> {
+    async forLabourInRange(labourId: string, from: DateKey, to: DateKey): Promise<Attendance[]> {
       const snap = await getDocs(
         query(
           collection(db, 'attendance'),

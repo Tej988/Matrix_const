@@ -7,7 +7,6 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-
   updateDoc,
   where,
   writeBatch,
@@ -182,9 +181,7 @@ export function createMeasurementRepository(db: Firestore) {
         const boqIds = [...new Set(items.map((i) => i.boqItemId))]
 
         // All reads must precede all writes inside a Firestore transaction.
-        const boqSnaps = await Promise.all(
-          boqIds.map((id) => tx.get(doc(db, 'boqItems', id))),
-        )
+        const boqSnaps = await Promise.all(boqIds.map((id) => tx.get(doc(db, 'boqItems', id))))
         const measurementSnap = await tx.get(doc(db, 'measurements', measurement.id))
 
         if (!measurementSnap.exists()) throw new Error('Measurement no longer exists')

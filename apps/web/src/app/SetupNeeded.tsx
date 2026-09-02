@@ -38,9 +38,8 @@ export function SetupNeeded({ missing }: { missing: string }) {
       </ol>
 
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Full walkthrough in <code>docs/DEPLOYMENT.md</code>, sections 2 and 4. None of these
-        values are secret &mdash; security comes from Firestore Rules, not from hiding the
-        config.
+        Full walkthrough in <code>docs/DEPLOYMENT.md</code>, sections 2 and 4. None of these values
+        are secret &mdash; security comes from Firestore Rules, not from hiding the config.
       </p>
     </main>
   )

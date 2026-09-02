@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { signInWithGoogle, describeAuthError } from '../../lib/auth'
+import { useTranslation } from '../../i18n/useTranslation'
 
 /**
  * One button. Spec section 28 - the primary user is not a software engineer,
  * and there is no password to remember (ADR-009).
  */
 export function SignInScreen() {
+  const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -25,11 +27,9 @@ export function SignInScreen() {
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
       <div className="text-center">
         <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">
-          Matrix Construction
+          {t('appName')}
         </h1>
-        <p className="mt-2 text-slate-500 dark:text-slate-400">
-          Projects, billing, labour and payments
-        </p>
+        <p className="mt-2 text-slate-500 dark:text-slate-400">{t('signInTagline')}</p>
       </div>
 
       <button
@@ -39,7 +39,7 @@ export function SignInScreen() {
         className="flex w-full max-w-xs items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-6 py-4 text-lg font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
       >
         <GoogleMark />
-        {busy ? 'Signing in…' : 'Sign in with Google'}
+        {busy ? t('signingIn') : t('signInWithGoogle')}
       </button>
 
       {error && (

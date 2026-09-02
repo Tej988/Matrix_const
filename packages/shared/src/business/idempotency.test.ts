@@ -20,9 +20,7 @@ describe('client payment keys', () => {
 
   it('normalises reference spacing and case', () => {
     // A UTR typed by hand and one pasted from a statement are the same receipt.
-    expect(clientPaymentKey({ ...base, reference: ' utr 123456789 ' })).toBe(
-      clientPaymentKey(base),
-    )
+    expect(clientPaymentKey({ ...base, reference: ' utr 123456789 ' })).toBe(clientPaymentKey(base))
   })
 
   it('differs when the amount differs', () => {

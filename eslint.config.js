@@ -44,8 +44,14 @@ export default tseslint.config(
         {
           patterns: [
             { group: ['react', 'react-*'], message: 'The business layer must not import React.' },
-            { group: ['firebase', 'firebase/*'], message: 'The business layer must not touch Firestore. Take data as an argument.' },
-            { group: ['**/repositories/**'], message: 'The business layer must not call repositories. Dependencies point one way.' },
+            {
+              group: ['firebase', 'firebase/*'],
+              message: 'The business layer must not touch Firestore. Take data as an argument.',
+            },
+            {
+              group: ['**/repositories/**'],
+              message: 'The business layer must not call repositories. Dependencies point one way.',
+            },
           ],
         },
       ],
@@ -63,7 +69,8 @@ export default tseslint.config(
         'error',
         {
           selector: "NewExpression[callee.name='Date']",
-          message: 'Use packages/shared/src/datetime instead. Raw dates are device-local; ours are IST-anchored (R-12).',
+          message:
+            'Use packages/shared/src/datetime instead. Raw dates are device-local; ours are IST-anchored (R-12).',
         },
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
@@ -84,7 +91,8 @@ export default tseslint.config(
           patterns: [
             {
               group: ['**/business/**'],
-              message: 'Import business functions from the @mc/shared entry point, not by deep path.',
+              message:
+                'Import business functions from the @mc/shared entry point, not by deep path.',
             },
           ],
         },

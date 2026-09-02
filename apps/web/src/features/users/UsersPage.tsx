@@ -27,11 +27,7 @@ export function UsersPage() {
   })
 
   const permissions = useMutation({
-    mutationFn: (args: {
-      user: UserRecord
-      role: Role
-      status: UserStatus
-    }) =>
+    mutationFn: (args: { user: UserRecord; role: Role; status: UserStatus }) =>
       repo.setRoleAndStatus(
         args.user.uid,
         { role: args.role, status: args.status },
@@ -47,7 +43,10 @@ export function UsersPage() {
 
   if (usersQuery.isError) {
     return (
-      <p role="alert" className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300">
+      <p
+        role="alert"
+        className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300"
+      >
         Could not load users. {(usersQuery.error as Error).message}
       </p>
     )
@@ -85,7 +84,10 @@ export function UsersPage() {
       )}
 
       {permissions.isError && (
-        <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+        >
           {(permissions.error as Error).message}
         </p>
       )}
@@ -157,10 +159,9 @@ export function UsersPage() {
       </ul>
 
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-        <strong>When you disable someone, also remove them from the Drive folder.</strong>{' '}
-        Drive permissions live outside this app and cannot be revoked from here, so a
-        disabled user keeps access to shared files until you unshare the folder
-        (RISKS.md R-07).
+        <strong>When you disable someone, also remove them from the Drive folder.</strong> Drive
+        permissions live outside this app and cannot be revoked from here, so a disabled user keeps
+        access to shared files until you unshare the folder (RISKS.md R-07).
       </p>
     </div>
   )
@@ -175,7 +176,11 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
 
   const create = useMutation({
     mutationFn: () =>
-      repo.create(uid.trim(), { displayName: displayName.trim(), email: email.trim(), role }, actorUid),
+      repo.create(
+        uid.trim(),
+        { displayName: displayName.trim(), email: email.trim(), role },
+        actorUid,
+      ),
     onSuccess: onDone,
   })
 
@@ -228,7 +233,8 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {r.charAt(0) + r.slice(1).toLowerCase()} &mdash; {permissionsFor(r).length} permissions
+              {r.charAt(0) + r.slice(1).toLowerCase()} &mdash; {permissionsFor(r).length}{' '}
+              permissions
             </option>
           ))}
         </select>

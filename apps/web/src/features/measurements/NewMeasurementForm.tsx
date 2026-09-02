@@ -7,6 +7,7 @@ import { UNIT_LABELS } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
+import { useTranslation } from '../../i18n/useTranslation'
 
 interface Row {
   key: number
@@ -33,6 +34,7 @@ export function NewMeasurementForm({
   onDone: () => void
 }) {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const boqRepo = useMemo(() => createBoqRepository(db), [])
   const repo = useMemo(() => createMeasurementRepository(db), [])
 
@@ -73,12 +75,12 @@ export function NewMeasurementForm({
     onSuccess: onDone,
   })
 
-  if (boq.isPending) return <p className="p-4 text-slate-500">Loading rate card…</p>
+  if (boq.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
 
   if (items.length === 0) {
     return (
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-        Add rate card items first &mdash; measurements are recorded against them.
+        {t('addRateCardFirst')}
       </div>
     )
   }
@@ -93,7 +95,7 @@ export function NewMeasurementForm({
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className={labelClass}>Title</span>
+          <span className={labelClass}>{t('title')}</span>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -102,7 +104,7 @@ export function NewMeasurementForm({
           />
         </label>
         <label className="block">
-          <span className={labelClass}>Date</span>
+          <span className={labelClass}>{t('date')}</span>
           <input
             type="date"
             value={date}
@@ -113,7 +115,7 @@ export function NewMeasurementForm({
       </div>
 
       <div className="space-y-2">
-        <span className={labelClass}>Work measured</span>
+        <span className={labelClass}>{t('workMeasured')}</span>
         {rows.map((row, idx) => {
           const item = items.find((i) => i.id === row.boqItemId)
           const left = item ? remainingQty(item) : null
@@ -128,7 +130,7 @@ export function NewMeasurementForm({
                 }
                 className={inputClass}
               >
-                <option value="">Choose work item…</option>
+                <option value="">{t('chooseWorkItem')}</option>
                 {items.map((i) => (
                   <option key={i.id} value={i.id}>
                     {i.name} ({remainingQty(i).toLocaleString('en-IN')} {UNIT_LABELS[i.unit]} left)
@@ -159,7 +161,7 @@ export function NewMeasurementForm({
                 onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}
                 disabled={rows.length === 1}
                 className="rounded-lg px-3 text-slate-400 disabled:opacity-30"
-                aria-label="Remove line"
+                aria-label={t('removeLine')}
               >
                 ✕
               </button>
@@ -168,10 +170,12 @@ export function NewMeasurementForm({
         })}
         <button
           type="button"
-          onClick={() => setRows((rs) => [...rs, { key: nextKey++, boqItemId: '', location: '', qty: '' }])}
+          onClick={() =>
+            setRows((rs) => [...rs, { key: nextKey++, boqItemId: '', location: '', qty: '' }])
+          }
           className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
         >
-          Add line
+          {t('addLine')}
         </button>
       </div>
 
@@ -204,7 +208,7 @@ export function NewMeasurementForm({
             </p>
           ))}
           <p className="mt-2 flex justify-between gap-2 border-t border-slate-200 pt-2 font-medium text-slate-900 dark:border-slate-600 dark:text-slate-100">
-            <span>Sheet total</span>
+            <span>{t('sheetTotal')}</span>
             <Amount paise={validation.totalAmountPaise} />
           </p>
         </div>
@@ -221,10 +225,10 @@ export function NewMeasurementForm({
         disabled={!validation.ok || create.isPending}
         className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
       >
-        {create.isPending ? 'Saving…' : 'Save as draft'}
+        {create.isPending ? t('saving') : t('saveAsDraft')}
       </button>
       <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-        Saved as a draft. Submit it, then the owner approves before it can be billed.
+        {t('savedAsDraftHint')}
       </p>
     </form>
   )

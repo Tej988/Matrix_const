@@ -33,9 +33,7 @@ describe('no tool can write', () => {
   })
 
   it('exposes no delete or cancel tool at all', () => {
-    const forbidden = AI_TOOLS.filter((t) =>
-      /delete|remove|cancel|reverse|destroy/i.test(t.name),
-    )
+    const forbidden = AI_TOOLS.filter((t) => /delete|remove|cancel|reverse|destroy/i.test(t.name))
     expect(forbidden).toEqual([])
   })
 })

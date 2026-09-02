@@ -195,9 +195,32 @@ describe('the contract-quantity rule - critical tests 2 and 3', () => {
 
 describe('roll-ups', () => {
   const items = [
-    item({ id: 'a', contractQty: 10_000, ratePaise: fromRupees(120), contractAmountPaise: fromRupees(12_00_000), completedQty: 2_500, billedQty: 2_500 }),
-    item({ id: 'b', code: 'PLA-01', name: 'Plaster', contractQty: 5_000, ratePaise: fromRupees(45), contractAmountPaise: fromRupees(2_25_000), completedQty: 1_000, billedQty: 0 }),
-    item({ id: 'c', code: 'PAI-01', name: 'Painting', contractQty: 8_000, ratePaise: fromRupees(35), contractAmountPaise: fromRupees(2_80_000) }),
+    item({
+      id: 'a',
+      contractQty: 10_000,
+      ratePaise: fromRupees(120),
+      contractAmountPaise: fromRupees(12_00_000),
+      completedQty: 2_500,
+      billedQty: 2_500,
+    }),
+    item({
+      id: 'b',
+      code: 'PLA-01',
+      name: 'Plaster',
+      contractQty: 5_000,
+      ratePaise: fromRupees(45),
+      contractAmountPaise: fromRupees(2_25_000),
+      completedQty: 1_000,
+      billedQty: 0,
+    }),
+    item({
+      id: 'c',
+      code: 'PAI-01',
+      name: 'Painting',
+      contractQty: 8_000,
+      ratePaise: fromRupees(35),
+      contractAmountPaise: fromRupees(2_80_000),
+    }),
   ]
 
   it('totals the rate card', () => {

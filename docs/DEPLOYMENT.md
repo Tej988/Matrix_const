@@ -13,13 +13,13 @@ explicit decision (ADR-002, §54).
 Verified on this machine, 2026-08-27. **Development runs on Windows natively**, not WSL —
 see the note below for why.
 
-| Tool | Required | Installed | Where |
-|---|---|---|---|
-| Node.js | ≥ 20.19 | ✅ v24.20.0 | `C:\Program Files\nodejs` |
-| npm | ≥ 10 | ✅ 11.19.0 | with Node |
-| firebase-tools | latest | ✅ 15.28.1 | npm global, user scope |
-| Java JDK | ≥ 17 | ✅ 21 | `%LOCALAPPDATA%\Programs\Microsoft\jdk-21…`, user scope |
-| Git | any | ✅ 2.42.0 | `…\Programs\Git` |
+| Tool           | Required | Installed   | Where                                                   |
+| -------------- | -------- | ----------- | ------------------------------------------------------- |
+| Node.js        | ≥ 20.19  | ✅ v24.20.0 | `C:\Program Files\nodejs`                               |
+| npm            | ≥ 10     | ✅ 11.19.0  | with Node                                               |
+| firebase-tools | latest   | ✅ 15.28.1  | npm global, user scope                                  |
+| Java JDK       | ≥ 17     | ✅ 21       | `%LOCALAPPDATA%\Programs\Microsoft\jdk-21…`, user scope |
+| Git            | any      | ✅ 2.42.0   | `…\Programs\Git`                                        |
 
 Verify with `node -v; npm -v; firebase --version; java -version`.
 
@@ -59,7 +59,7 @@ Per environment, in the Firebase Console:
 2. **Authentication** → enable **Google** as the only provider (ADR-009). Set the support
    email and the public-facing app name; both appear on the consent screen your father sees.
 3. **Firestore** → Create database → **production mode** (default deny) → region
-   `asia-south1` (Mumbai), for latency and data residency. *Region is permanent.*
+   `asia-south1` (Mumbai), for latency and data residency. _Region is permanent._
 4. **Hosting** → register the web app, copy the config into `.env.local`.
 5. **App Check** → register reCAPTCHA v3, **monitor-only** initially (`SECURITY.md` §5).
 6. **Storage** → attempt to provision a bucket, and **record the result in `RISKS.md` R-05.**
@@ -79,8 +79,8 @@ it is console-only by necessity, not by choice.
    it `Matrix Construction`, not the project ID), user support email, developer contact
    email. Logo and the home page / privacy / terms links are optional in Testing mode.
 
-9. **Audience** — User type **External**. Publishing status stays **Testing**. Under *Test
-   users* → **Add users** → every Google account that will sign in: yours, your father's,
+9. **Audience** — User type **External**. Publishing status stays **Testing**. Under _Test
+   users_ → **Add users** → every Google account that will sign in: yours, your father's,
    each supervisor. **This list is the allowlist — an account not on it cannot sign in at
    all.** Testing mode allows 100 users and suppresses the "unverified app" warning, so no
    Google verification is needed at this scale (ADR-009).
@@ -90,9 +90,9 @@ it is console-only by necessity, not by choice.
     That scope grants access only to files this app itself creates; it cannot read anything
     else in anyone's Drive, and preserving that narrowness is deliberate (`SECURITY.md` §7).
 
-11. **Clients** — Firebase already created a client called *"Web client (auto created by
-    Google Service)"*. **Edit that one; do not create a new one.** Add to *Authorized
-    JavaScript origins*: `http://localhost:5173`, `https://<project-id>.web.app`,
+11. **Clients** — Firebase already created a client called _"Web client (auto created by
+    Google Service)"_. **Edit that one; do not create a new one.** Add to _Authorized
+    JavaScript origins_: `http://localhost:5173`, `https://<project-id>.web.app`,
     `https://<project-id>.firebaseapp.com`. Firebase manages the redirect URI
     (`/__/auth/handler`) itself. Copy the Client ID into `.env.local`.
 
@@ -206,14 +206,14 @@ data goes in — whichever comes first.
 
 ## 9. Cost control — §54
 
-| Service | Free limit | Expected | Headroom |
-|---|---|---|---|
-| Firestore reads | 50,000/day | ~2,000 | 96% |
-| Firestore writes | 20,000/day | ~150 | 99% |
-| Firestore storage | 1 GiB | < 50 MB | ample |
-| Hosting transfer | 360 MB/day | ~20 MB | 94% |
-| Auth | unlimited | — | — |
-| Drive | 15 GB/account | — | ample |
+| Service           | Free limit    | Expected | Headroom |
+| ----------------- | ------------- | -------- | -------- |
+| Firestore reads   | 50,000/day    | ~2,000   | 96%      |
+| Firestore writes  | 20,000/day    | ~150     | 99%      |
+| Firestore storage | 1 GiB         | < 50 MB  | ample    |
+| Hosting transfer  | 360 MB/day    | ~20 MB   | 94%      |
+| Auth              | unlimited     | —        | —        |
+| Drive             | 15 GB/account | —        | ample    |
 
 Settings → Usage renders a session read/write counter (§54), so an accidental unbounded
 listener is visible immediately rather than at the daily cap. A budget alert cannot be set

@@ -18,15 +18,15 @@ Severity: 🔴 blocks or corrupts money · 🟠 degrades a core promise · 🟡 
 
 But §17's and §38's own worked example says:
 
-| Field | Value |
-|---|---|
-| Contract Value | ₹18,50,000 |
-| Total Billed | ₹10,00,000 |
-| Total Received | ₹10,00,000 |
+| Field                  | Value         |
+| ---------------------- | ------------- |
+| Contract Value         | ₹18,50,000    |
+| Total Billed           | ₹10,00,000    |
+| Total Received         | ₹10,00,000    |
 | **Client Outstanding** | **₹8,50,000** |
 
 If ₹10,00,000 was billed and ₹10,00,000 was received, the receivable is **₹0**. The
-₹8,50,000 is `contractValue − totalBilled` — the *unbilled contract balance*, which is
+₹8,50,000 is `contractValue − totalBilled` — the _unbilled contract balance_, which is
 exactly the calculation §8 forbids. Meanwhile §3 lists "Current received amount ₹10,00,000,
 Current outstanding ₹8,50,000" without mentioning billing at all, which is a third reading.
 
@@ -34,7 +34,7 @@ These are three genuinely different business quantities and the dashboard shows 
 
 **Resolution taken.** I model all three separately and never conflate them:
 
-- `receivable = totalBilled − totalReceived` — money the client owes *now*
+- `receivable = totalBilled − totalReceived` — money the client owes _now_
 - `unbilledBalance = contractValue − totalBilled` — work still to bill
 - `contractRemaining = contractValue − totalReceived` — total still to collect
 
@@ -42,7 +42,7 @@ The project card shows **Receivable** as the primary figure with **Unbilled** be
 because "who owes me money today" is the operationally useful number. The seed data will
 reproduce your real figures under whichever definition you confirm.
 
-**Needs your answer.** When your father says *"Tata project mein kitna baaki hai?"* — does
+**Needs your answer.** When your father says _"Tata project mein kitna baaki hai?"_ — does
 he mean the ₹8,50,000 of contract left to bill, or money invoiced and unpaid? This decides
 what the AI answers in Phase 12 and what the dashboard leads with. My reading of §3 is that
 he means ₹8,50,000, i.e. the contract balance — but §8 insists that is wrong, so I want it
@@ -63,11 +63,11 @@ update a project summary.
 
 **Resolution taken.** Split writes by their tolerance for delay:
 
-| Write class | Mechanism | Offline |
-|---|---|---|
-| Attendance | plain `setDoc` with deterministic ID (ADR-006), queued by Firestore's local cache | ✅ works |
-| Labour wage / labour payment / client payment / bill / expense | `runTransaction` including the summary update | ❌ blocked, with an explicit "you are offline" UI state |
-| Summary rebuild | owner-triggered full recompute | ❌ online only |
+| Write class                                                    | Mechanism                                                                         | Offline                                                 |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Attendance                                                     | plain `setDoc` with deterministic ID (ADR-006), queued by Firestore's local cache | ✅ works                                                |
+| Labour wage / labour payment / client payment / bill / expense | `runTransaction` including the summary update                                     | ❌ blocked, with an explicit "you are offline" UI state |
+| Summary rebuild                                                | owner-triggered full recompute                                                    | ❌ online only                                          |
 
 Financial writes are deliberately **online-only**, and the UI says so plainly rather than
 appearing to succeed. Attendance-derived labour cost is therefore **eventually** consistent:
@@ -84,7 +84,7 @@ the Rules permit. Rules bugs are not cosmetic — they are the vulnerability.
 
 **Mitigation.** Rules are treated as production code: unit-tested against the emulator with
 `@firebase/rules-unit-testing`, one test per role per collection per operation, including
-explicit *denial* tests. A phase does not ship with failing rules tests. Financial
+explicit _denial_ tests. A phase does not ship with failing rules tests. Financial
 collections deny `delete` universally (ADR-007). Field-level validation lives in Rules, not
 only in the client.
 
@@ -128,7 +128,7 @@ GET https://firebasestorage.googleapis.com/v0/b/matrix-const.firebasestorage.app
 
 404, not 403. An existing bucket with default rules refuses an unauthenticated list with
 **403 Permission denied**; 404 means there is no bucket. The `storageBucket` field in the
-SDK config (`matrix-const.firebasestorage.app`) is only the name a bucket *would* have —
+SDK config (`matrix-const.firebasestorage.app`) is only the name a bucket _would_ have —
 it is emitted whether or not one has been provisioned, which makes it easy to misread as
 confirmation.
 
@@ -137,8 +137,8 @@ confirmation.
 project. If Blaze is ever enabled, provision a bucket and the adapter swap is one line —
 `StorageAdapter` exists precisely so that stays true.
 
-*(Worth a glance in the console to double-confirm: Firebase → Storage showing a "Get
-started" button rather than a file browser is the same answer from the other direction.)*
+_(Worth a glance in the console to double-confirm: Firebase → Storage showing a "Get
+started" button rather than a file browser is the same answer from the other direction.)_
 
 ---
 
@@ -161,7 +161,7 @@ Drive permissions are per Google account and are invisible to Firestore Rules. S
 `users/{uid}.status = 'DISABLED'` revokes app access but **not** Drive folder access.
 
 **Mitigation.** Offboarding is a documented two-step procedure (`SECURITY.md`): disable in
-the app *and* unshare the Drive folder. The app shows a reminder banner on the user-disable
+the app _and_ unshare the Drive folder. The app shows a reminder banner on the user-disable
 action. There is no way to automate this without a server — a genuine gap, named rather than
 hidden.
 
@@ -174,7 +174,7 @@ embedded Noto Sans Devanagari subset — several hundred KB — and correct shap
 conjuncts (क्ष, त्र, ज्ञ), which naive embedding gets wrong.
 
 **Mitigation.** Bill PDFs are **English-only in v1**, which matches how construction bills
-are actually issued to corporate clients like Tata Project Limited. The *interface* is fully
+are actually issued to corporate clients like Tata Project Limited. The _interface_ is fully
 bilingual (§29); only the PDF is not. If Hindi PDFs are needed, we lazy-load a subsetted
 font chunk so the main bundle stays small. Flagged now because "Hindi support" reasonably
 reads as including bills, and it will not.
@@ -190,7 +190,7 @@ unproven. Hinglish — Hindi grammar with English nouns, which is how the query 
 actually spoken — is the hardest case for any single-language model.
 
 **Mitigation.** Phase 13 starts with a measurement spike against real recorded phrases
-before any UI is built. Voice is an *accelerator layered over* a fully usable tap interface,
+before any UI is built. Voice is an _accelerator layered over_ a fully usable tap interface,
 never the only path to a feature. If accuracy is poor, we ship voice for a constrained
 command grammar rather than open-ended natural language, and say so.
 
@@ -203,13 +203,13 @@ MB/day** transfer.
 
 Rough sizing at 5 users / 5 active projects / 40 labourers:
 
-| Activity | Daily writes | Daily reads |
-|---|---|---|
-| Attendance (40 labourers × 1) | 40 | ~120 |
-| Measurements / bills / payments | ~30 | ~300 |
-| Dashboard loads (5 users × 6) | 0 | ~900 (summary docs, not raw collections) |
-| Rules `get()` evaluations | — | ~400 |
-| Audit log | ~70 | ~0 |
+| Activity                        | Daily writes | Daily reads                              |
+| ------------------------------- | ------------ | ---------------------------------------- |
+| Attendance (40 labourers × 1)   | 40           | ~120                                     |
+| Measurements / bills / payments | ~30          | ~300                                     |
+| Dashboard loads (5 users × 6)   | 0            | ~900 (summary docs, not raw collections) |
+| Rules `get()` evaluations       | —            | ~400                                     |
+| Audit log                       | ~70          | ~0                                       |
 
 Order of ~150 writes and ~2,000 reads/day — roughly **4% of the read quota**. Comfortable.
 
@@ -253,8 +253,8 @@ the same `completedQty`, and their combined entry can exceed the contract quanti
 exact overbilling §4 forbids.
 
 **Mitigation.** `boqItems.completedQty` is only ever incremented inside the same transaction
-that **approves** a measurement, and the over-quantity check is re-evaluated *at approval
-time* against the live value, not against the value shown when the draft was typed. A draft
+that **approves** a measurement, and the over-quantity check is re-evaluated _at approval
+time_ against the live value, not against the value shown when the draft was typed. A draft
 may be created optimistically; approval is where the invariant is enforced. If approval
 would breach the contract quantity, it is rejected and requires an explicit change order.
 
@@ -262,7 +262,7 @@ would breach the contract quantity, it is rejected and requires an explicit chan
 
 ## 🟡 R-14 — No push notifications on Spark
 
-§40 wants FCM reminders for pending bills and due payments. FCM itself is free, but *sending*
+§40 wants FCM reminders for pending bills and due payments. FCM itself is free, but _sending_
 requires a server or scheduled job → Blaze.
 
 **Mitigation.** v1 derives these as in-app indicators computed on load — badge counts and a

@@ -126,9 +126,7 @@ describe('creating items', () => {
 
   it('rejects an item created as already part-complete', async () => {
     // Progress must arrive through measurement approval, not at creation.
-    await assertFails(
-      setDoc(doc(as(OWNER), 'boqItems', 'b-c'), flooring({ completedQty: 500 })),
-    )
+    await assertFails(setDoc(doc(as(OWNER), 'boqItems', 'b-c'), flooring({ completedQty: 500 })))
     await assertFails(setDoc(doc(as(OWNER), 'boqItems', 'b-b'), flooring({ billedQty: 500 })))
   })
 
@@ -151,9 +149,7 @@ describe('editing items - the R-13 guard', () => {
   it('REFUSES to move completedQty through a rate-card edit', async () => {
     // Otherwise the section 4 overbilling rule could be bypassed by editing a
     // form field rather than approving a measurement.
-    await assertFails(
-      updateDoc(doc(as(OWNER), 'boqItems', ITEM_A), { completedQty: 9999 }),
-    )
+    await assertFails(updateDoc(doc(as(OWNER), 'boqItems', ITEM_A), { completedQty: 9999 }))
   })
 
   it('REFUSES to move billedQty through a rate-card edit', async () => {

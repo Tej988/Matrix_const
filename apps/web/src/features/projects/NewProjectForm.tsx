@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  createClientRepository,
-  createProjectRepository,
-} from '@mc/shared/repositories/projects'
+import { createClientRepository, createProjectRepository } from '@mc/shared/repositories/projects'
 import { Money, Dates } from '@mc/shared'
 import { NO_TAX, PROJECT_STATUSES, type ProjectStatus } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
 import { AmountWithWords } from '../../components/Money'
+import { useTranslation } from '../../i18n/useTranslation'
 
 export function NewProjectForm({ onDone }: { onDone: () => void }) {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const projects = useMemo(() => createProjectRepository(db), [])
   const clients = useMemo(() => createClientRepository(db), [])
   const queryClient = useQueryClient()
@@ -37,7 +36,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
     try {
       contractPaise = Money.parseRupees(contractInput)
     } catch {
-      parseError = 'Enter an amount like 18,50,000'
+      parseError = t('enterAmountLike')
     }
   }
 
@@ -45,7 +44,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!contractPaise || !selectedClient) throw new Error('Form is incomplete')
+      if (!contractPaise || !selectedClient) throw new Error(t('formIncomplete'))
       return projects.create(
         {
           name: name.trim(),
@@ -68,15 +67,14 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
     },
   })
 
-  const ready =
-    name.trim() !== '' && clientId !== '' && contractPaise !== null && contractPaise > 0
+  const ready = name.trim() !== '' && clientId !== '' && contractPaise !== null && contractPaise > 0
 
-  if (clientList.isPending) return <p className="p-4 text-slate-500">Loading clients…</p>
+  if (clientList.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
 
   if ((clientList.data?.length ?? 0) === 0) {
     return (
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-        Add a client first &mdash; every project belongs to one.
+        {t('addClientFirst')}
       </div>
     )
   }
@@ -89,7 +87,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
       }}
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
-      <Field label="Project name">
+      <Field label={t('projectName')}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -99,7 +97,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Short code">
+        <Field label={t('shortCode')}>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -108,13 +106,13 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
           />
         </Field>
 
-        <Field label="Client">
+        <Field label={t('client')}>
           <select
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             className={inputClass}
           >
-            <option value="">Choose a client…</option>
+            <option value="">{t('chooseClient')}</option>
             {clientList.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -124,7 +122,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
 
-      <Field label="Contract value">
+      <Field label={t('contractValue')}>
         <input
           value={contractInput}
           onChange={(e) => setContractInput(e.target.value)}
@@ -141,7 +139,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Start date">
+        <Field label={t('startDate')}>
           <input
             type="date"
             value={startDate}
@@ -150,7 +148,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
           />
         </Field>
 
-        <Field label="Status">
+        <Field label={t('status')}>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as ProjectStatus)}
@@ -165,7 +163,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
 
-      <Field label="Site address (optional)">
+      <Field label={`${t('siteAddress')} (${t('optional')})`}>
         <input
           value={siteAddress}
           onChange={(e) => setSiteAddress(e.target.value)}
@@ -184,7 +182,7 @@ export function NewProjectForm({ onDone }: { onDone: () => void }) {
         disabled={!ready || create.isPending}
         className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
       >
-        {create.isPending ? 'Creating…' : 'Create project'}
+        {create.isPending ? t('creating') : t('createProject')}
       </button>
     </form>
   )

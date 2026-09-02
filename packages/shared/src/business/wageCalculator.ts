@@ -1,12 +1,6 @@
-import type {
-  Attendance,
-  AttendanceStatus,
-  DateKey,
-  Paise,
-  WageRules,
-} from '@mc/types'
+import type { Attendance, AttendanceStatus, DateKey, Paise, WageRules } from '@mc/types'
 import { DEFAULT_WAGE_RULES } from '@mc/types'
-import { multiplyQty, sum, subtract, ZERO } from '../money/index'
+import { max, multiplyQty, sum, subtract, ZERO } from '../money/index'
 
 /**
  * Wage calculation. Sections 14 and 51.
@@ -142,32 +136,109 @@ export function quickWage(
 }
 
 // ---------------------------------------------------------------------------
-// Labour ledger - earned vs paid vs payable
+// Labour ledger - earned vs paid vs payable, and advances
 // ---------------------------------------------------------------------------
+
+/**
+ * One payment, optionally marked as an advance - money handed over BEFORE the
+ * work that earns it.
+ *
+ * A bare Paise is still accepted so that callers with no advance data keep
+ * working; an unmarked payment counts as an ordinary wage payment.
+ */
+export interface LedgerPayment {
+  amountPaise: Paise
+  isAdvance?: boolean | undefined
+}
+
+export type LedgerPaymentInput = Paise | LedgerPayment
+
+const paymentAmount = (p: LedgerPaymentInput): Paise => (typeof p === 'number' ? p : p.amountPaise)
+
+const isAdvancePayment = (p: LedgerPaymentInput): boolean =>
+  typeof p !== 'number' && p.isAdvance === true
+
+export interface AdvanceRecovery {
+  /** Advance already cancelled out by wages the labourer has since earned. */
+  recoveredPaise: Paise
+  /** Advance still owed back. Zero or positive - never a negative payable. */
+  outstandingPaise: Paise
+}
+
+/**
+ * Earnings settle an advance before anything is handed over, because that is
+ * what an advance is: wages taken early.
+ *
+ * Recovery stops at the advance. Surplus earnings are payable, not an
+ * over-recovery, and a shortfall stays outstanding at full paise precision
+ * rather than being rounded or clamped away.
+ */
+export function recoverAdvance(earnedPaise: Paise, advancedPaise: Paise): AdvanceRecovery {
+  if (advancedPaise <= 0) return { recoveredPaise: ZERO, outstandingPaise: ZERO }
+  const recoveredPaise = earnedPaise < advancedPaise ? max(earnedPaise, ZERO) : advancedPaise
+  return { recoveredPaise, outstandingPaise: subtract(advancedPaise, recoveredPaise) }
+}
 
 export interface LabourLedger {
   earnedPaise: Paise
+  /** Every rupee that left the business for this labourer, advances included. */
   paidPaise: Paise
+  /** Of that, what was paid as an advance. */
+  advancedPaise: Paise
+  advanceRecoveredPaise: Paise
+  advanceOutstandingPaise: Paise
   /** Negative means the labourer has been advanced money against future work. */
   payablePaise: Paise
+  /** What to hand over now: earnings left after recovery, less wages already paid. */
+  netPayablePaise: Paise
   isAdvance: boolean
 }
 
 /**
  * Section 15: labour payment is different from labour earned.
  *
- * An advance is normal in construction and shows as a negative payable rather
- * than being clamped to zero, because hiding it would misstate what the
- * business is owed back.
+ * Two numbers matter and they are not the same number:
+ *
+ *   advanceOutstanding - what the labourer owes back
+ *   netPayable         - what to hand over today
+ *
+ * Collapsing them into one signed figure is what hides an advance from the
+ * person paying, so they are reported separately and neither is clamped to
+ * zero. `payablePaise` stays as the plain earned-minus-paid difference, and the
+ * three agree by construction:
+ *
+ *   netPayable - advanceOutstanding === payable
  */
 export function labourLedger(
   earned: readonly Paise[],
-  paid: readonly Paise[],
+  paid: readonly LedgerPaymentInput[],
 ): LabourLedger {
   const earnedPaise = earned.length > 0 ? sum(earned) : ZERO
-  const paidPaise = paid.length > 0 ? sum(paid) : ZERO
+
+  const amounts = paid.map(paymentAmount)
+  const advances = paid.filter(isAdvancePayment).map(paymentAmount)
+
+  const paidPaise = amounts.length > 0 ? sum(amounts) : ZERO
+  const advancedPaise = advances.length > 0 ? sum(advances) : ZERO
+  const wagesPaidPaise = subtract(paidPaise, advancedPaise)
+
+  const { recoveredPaise, outstandingPaise } = recoverAdvance(earnedPaise, advancedPaise)
+
   const payablePaise = subtract(earnedPaise, paidPaise)
-  return { earnedPaise, paidPaise, payablePaise, isAdvance: payablePaise < 0 }
+  const netPayablePaise = subtract(subtract(earnedPaise, recoveredPaise), wagesPaidPaise)
+
+  return {
+    earnedPaise,
+    paidPaise,
+    advancedPaise,
+    advanceRecoveredPaise: recoveredPaise,
+    advanceOutstandingPaise: outstandingPaise,
+    payablePaise,
+    netPayablePaise,
+    // An unmarked overpayment is an advance in substance, whatever it was
+    // called when it was recorded.
+    isAdvance: payablePaise < 0,
+  }
 }
 
 // ---------------------------------------------------------------------------

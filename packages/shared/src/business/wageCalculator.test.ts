@@ -8,6 +8,7 @@ import {
   calculateWage,
   quickWage,
   labourLedger,
+  recoverAdvance,
   unmarkedLabour,
   summariseDay,
   isMarkableDate,
@@ -166,12 +167,160 @@ describe('earned vs paid vs payable - section 15', () => {
   })
 })
 
+/**
+ * Advances - money handed over before the work that earns it, recovered from
+ * future wages. Section 15, and the reason `netPayable` exists.
+ */
+describe('advances against future wages', () => {
+  const advance = (rupees: number) => ({ amountPaise: fromRupees(rupees), isAdvance: true })
+  const wage = (rupees: number) => ({ amountPaise: fromRupees(rupees), isAdvance: false })
+
+  it('recovers nothing when nothing has been earned yet', () => {
+    const l = labourLedger([], [advance(5_000)])
+    expect(l.earnedPaise).toBe(fromRupees(0))
+    expect(l.paidPaise).toBe(fromRupees(5_000))
+    expect(l.advancedPaise).toBe(fromRupees(5_000))
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(0))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(5_000))
+    // Nothing to hand over: the money has already gone out.
+    expect(l.netPayablePaise).toBe(fromRupees(0))
+    expect(l.payablePaise).toBe(fromRupees(-5_000))
+    expect(l.isAdvance).toBe(true)
+  })
+
+  it('recovers only as much as has been earned', () => {
+    const l = labourLedger([fromRupees(3_000)], [advance(5_000)])
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(3_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(2_000))
+    expect(l.netPayablePaise).toBe(fromRupees(0))
+    expect(l.isAdvance).toBe(true)
+  })
+
+  it('pays out the surplus once the advance is cleared', () => {
+    const l = labourLedger([fromRupees(8_000)], [advance(5_000)])
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(5_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(0))
+    expect(l.netPayablePaise).toBe(fromRupees(3_000))
+    expect(l.payablePaise).toBe(fromRupees(3_000))
+    expect(l.isAdvance).toBe(false)
+  })
+
+  it('settles exactly when earnings equal the advance', () => {
+    const l = labourLedger([fromRupees(5_000)], [advance(5_000)])
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(5_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(0))
+    expect(l.netPayablePaise).toBe(fromRupees(0))
+    expect(l.payablePaise).toBe(fromRupees(0))
+    expect(l.isAdvance).toBe(false)
+  })
+
+  it('adds several advances up before recovering them', () => {
+    const l = labourLedger([fromRupees(6_000)], [advance(2_000), advance(3_000), advance(4_000)])
+    expect(l.advancedPaise).toBe(fromRupees(9_000))
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(6_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(3_000))
+    expect(l.netPayablePaise).toBe(fromRupees(0))
+  })
+
+  it('recovers the advance before handing over fresh wages', () => {
+    // Earned 20,000 against a 5,000 advance, with 12,000 already paid.
+    const l = labourLedger([fromRupees(20_000)], [advance(5_000), wage(12_000)])
+    expect(l.paidPaise).toBe(fromRupees(17_000))
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(5_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(0))
+    expect(l.netPayablePaise).toBe(fromRupees(3_000))
+    expect(l.payablePaise).toBe(fromRupees(3_000))
+  })
+
+  it('keeps the advance outstanding even while wages are also being paid', () => {
+    // The labourer barely worked, so the advance was never recovered, and a
+    // cash wage went out on top of it anyway.
+    const l = labourLedger([fromRupees(1_000)], [advance(5_000), wage(2_000)])
+    expect(l.advanceRecoveredPaise).toBe(fromRupees(1_000))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(4_000))
+    expect(l.netPayablePaise).toBe(fromRupees(-2_000))
+    expect(l.payablePaise).toBe(fromRupees(-6_000))
+  })
+
+  it('never rounds an advance away to zero', () => {
+    const l = labourLedger([fromRupees(9_999.99)], [advance(10_000)])
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(0.01))
+    expect(l.advanceOutstandingPaise).not.toBe(fromRupees(0))
+  })
+
+  it('holds the invariant that ties the three figures together', () => {
+    const cases = [
+      labourLedger([], [advance(5_000)]),
+      labourLedger([fromRupees(3_000)], [advance(5_000)]),
+      labourLedger([fromRupees(20_000)], [advance(5_000), wage(12_000)]),
+      labourLedger([fromRupees(1_000)], [advance(5_000), wage(2_000)]),
+      labourLedger([fromRupees(16_800)], []),
+    ]
+    for (const l of cases) {
+      expect(l.netPayablePaise - l.advanceOutstandingPaise).toBe(l.payablePaise)
+    }
+  })
+
+  it('treats an unmarked payment as an ordinary wage, not an advance', () => {
+    const l = labourLedger([fromRupees(5_000)], [fromRupees(8_000)])
+    expect(l.advancedPaise).toBe(fromRupees(0))
+    expect(l.advanceOutstandingPaise).toBe(fromRupees(0))
+    // Still visibly negative, so an unmarked overpayment is not hidden either.
+    expect(l.netPayablePaise).toBe(fromRupees(-3_000))
+    expect(l.isAdvance).toBe(true)
+  })
+
+  it('reads an isAdvance:false payment exactly like a bare amount', () => {
+    const flagged = labourLedger([fromRupees(20_000)], [wage(12_000)])
+    const bare = labourLedger([fromRupees(20_000)], [fromRupees(12_000)])
+    expect(flagged).toEqual(bare)
+  })
+})
+
+describe('advance recovery on its own', () => {
+  it('recovers up to the advance and no further', () => {
+    expect(recoverAdvance(fromRupees(8_000), fromRupees(5_000))).toEqual({
+      recoveredPaise: fromRupees(5_000),
+      outstandingPaise: fromRupees(0),
+    })
+  })
+
+  it('recovers what it can and leaves the rest owed back', () => {
+    expect(recoverAdvance(fromRupees(2_000), fromRupees(5_000))).toEqual({
+      recoveredPaise: fromRupees(2_000),
+      outstandingPaise: fromRupees(3_000),
+    })
+  })
+
+  it('has nothing to do when there is no advance', () => {
+    expect(recoverAdvance(fromRupees(8_000), fromRupees(0))).toEqual({
+      recoveredPaise: fromRupees(0),
+      outstandingPaise: fromRupees(0),
+    })
+  })
+})
+
 describe('attendance helpers', () => {
   const roster = [{ id: 'l1' }, { id: 'l2' }, { id: 'l3' }]
 
   it('lists who is not marked yet', () => {
     const left = unmarkedLabour(roster, [{ labourId: 'l1' }])
     expect(left.map((l) => l.id)).toEqual(['l2', 'l3'])
+  })
+
+  it('counts leave and holiday separately from absence', () => {
+    // A day can be unpaid without being an absence, and the dashboard shows
+    // them apart - a site closed for a holiday is not the same as nobody
+    // turning up.
+    const s = summariseDay(roster, [mark('LEAVE', 1), mark('HOLIDAY', 1), mark('ABSENT', 1)])
+    expect(s.leave).toBe(1)
+    expect(s.holiday).toBe(1)
+    expect(s.absent).toBe(1)
+    expect(s.marked).toBe(3)
+  })
+
+  it('is not complete against an empty roster, however many marks exist', () => {
+    expect(summariseDay([], [mark('PRESENT', 1)]).complete).toBe(false)
   })
 
   it('summarises the day and knows when it is complete', () => {

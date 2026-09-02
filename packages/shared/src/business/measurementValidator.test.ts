@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import type { BoqItem, MeasurementItem, MeasurementStatus, Role } from '@mc/types'
+import {
+  ROLES,
+  type BoqItem,
+  type MeasurementItem,
+  type MeasurementStatus,
+  type Role,
+} from '@mc/types'
 import { fromRupees } from '../money/index'
 import {
   validateMeasurement,
@@ -58,6 +64,26 @@ describe('the section 6 worked example', () => {
     // 3,00,000 + 45,000
     expect(r.totalAmountPaise).toBe(fromRupees(3_45_000))
     expect(r.lines).toHaveLength(2)
+  })
+})
+
+describe('optional line description', () => {
+  it('carries a description through when one is given', () => {
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-flo', location: 'Block A', currentQty: 100, description: 'North wing' }],
+      [flooring],
+    )
+    expect(r.lines[0]?.description).toBe('North wing')
+  })
+
+  it('omits the key entirely when none is given', () => {
+    // Firestore rejects an explicit undefined, so the property must be absent
+    // rather than present-and-undefined.
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-flo', location: 'Block A', currentQty: 100 }],
+      [flooring],
+    )
+    expect('description' in (r.lines[0] ?? {})).toBe(false)
   })
 })
 
@@ -199,6 +225,26 @@ describe('who may approve - separation of duty', () => {
   it('lets owner and admin approve', () => {
     for (const role of ['OWNER', 'ADMIN'] as Role[]) {
       expect(canPerformTransition(role, 'SUBMITTED', 'APPROVED')).toBe(true)
+    }
+  })
+
+  it('refuses an illegal transition regardless of role', () => {
+    // The role check never runs if the move itself is not allowed. This is what
+    // stops even an OWNER reopening an approved measurement a bill may
+    // already reference.
+    for (const role of ROLES) {
+      expect(canPerformTransition(role, 'APPROVED', 'DRAFT')).toBe(false)
+      expect(canPerformTransition(role, 'APPROVED', 'REJECTED')).toBe(false)
+      expect(canPerformTransition(role, 'DRAFT', 'APPROVED')).toBe(false)
+    }
+  })
+
+  it('lets owner and admin reject, and nobody else', () => {
+    for (const role of ['OWNER', 'ADMIN'] as Role[]) {
+      expect(canPerformTransition(role, 'SUBMITTED', 'REJECTED')).toBe(true)
+    }
+    for (const role of ['ACCOUNTANT', 'VIEWER', 'SUPERVISOR'] as Role[]) {
+      expect(canPerformTransition(role, 'SUBMITTED', 'REJECTED')).toBe(false)
     }
   })
 

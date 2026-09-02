@@ -3,7 +3,7 @@
 Spec §57 step 9, and §20, §25, §47.
 
 **The governing fact:** there is no server (ADR-002). Firestore Security Rules are not one
-layer of defence — they are *the* layer. Everything below follows from taking that
+layer of defence — they are _the_ layer. Everything below follows from taking that
 seriously.
 
 ---
@@ -25,27 +25,27 @@ to Google Workspace; today the `users/{uid}` gate is sufficient.
 
 ## 2. Roles (§20)
 
-| | OWNER | ADMIN | ACCOUNTANT | SUPERVISOR | VIEWER |
-|---|:---:|:---:|:---:|:---:|:---:|
-| Projects, clients | CRU | CRU | R | R¹ | R |
-| Project members | CRUD | CRU | R | R¹ | – |
-| BOQ / rate card | CRU | CRU | R | R¹ | R |
-| Measurements — enter | ✓ | ✓ | – | ✓¹ | – |
-| Measurements — **approve** | ✓ | ✓ | – | **✗** | – |
-| Bills — create, generate | ✓ | ✓ | ✓ | – | R |
-| Bills — cancel | ✓ | ✓ | – | – | – |
-| Client payments — record | ✓ | ✓ | ✓ | – | R |
-| Client payments — **confirm** | ✓ | ✓ | ✓ | – | – |
-| Labour profiles | CRU | CRU | R | R | R |
-| Attendance | CRU | CRU | R | **CRU¹** | R |
-| Wage periods — lock | ✓ | ✓ | ✓ | – | R |
-| Labour payments | ✓ | ✓ | ✓ | – | R |
-| Expenses | ✓ | ✓ | ✓ | ✓¹ | R |
-| Reports | ✓ | ✓ | ✓ | ¹ | ✓ |
-| Users & roles | ✓ | – | – | – | – |
-| Settings | ✓ | R | R | R | R |
-| Reconciliation | ✓ | – | – | – | – |
-| **Delete anything financial** | **✗** | **✗** | **✗** | **✗** | **✗** |
+|                               | OWNER | ADMIN | ACCOUNTANT | SUPERVISOR | VIEWER |
+| ----------------------------- | :---: | :---: | :--------: | :--------: | :----: |
+| Projects, clients             |  CRU  |  CRU  |     R      |     R¹     |   R    |
+| Project members               | CRUD  |  CRU  |     R      |     R¹     |   –    |
+| BOQ / rate card               |  CRU  |  CRU  |     R      |     R¹     |   R    |
+| Measurements — enter          |   ✓   |   ✓   |     –      |     ✓¹     |   –    |
+| Measurements — **approve**    |   ✓   |   ✓   |     –      |   **✗**    |   –    |
+| Bills — create, generate      |   ✓   |   ✓   |     ✓      |     –      |   R    |
+| Bills — cancel                |   ✓   |   ✓   |     –      |     –      |   –    |
+| Client payments — record      |   ✓   |   ✓   |     ✓      |     –      |   R    |
+| Client payments — **confirm** |   ✓   |   ✓   |     ✓      |     –      |   –    |
+| Labour profiles               |  CRU  |  CRU  |     R      |     R      |   R    |
+| Attendance                    |  CRU  |  CRU  |     R      |  **CRU¹**  |   R    |
+| Wage periods — lock           |   ✓   |   ✓   |     ✓      |     –      |   R    |
+| Labour payments               |   ✓   |   ✓   |     ✓      |     –      |   R    |
+| Expenses                      |   ✓   |   ✓   |     ✓      |     ✓¹     |   R    |
+| Reports                       |   ✓   |   ✓   |     ✓      |     ¹      |   ✓    |
+| Users & roles                 |   ✓   |   –   |     –      |     –      |   –    |
+| Settings                      |   ✓   |   R   |     R      |     R      |   R    |
+| Reconciliation                |   ✓   |   –   |     –      |     –      |   –    |
+| **Delete anything financial** | **✗** | **✗** |   **✗**    |   **✗**    | **✗**  |
 
 ¹ restricted to projects the user is a member of, via `projectMembers`.
 
@@ -152,7 +152,7 @@ a one-time cost per environment.
 
 ## 5. App Check
 
-Rules answer *who is asking*. App Check answers *what is asking* — it blocks scripted
+Rules answer _who is asking_. App Check answers _what is asking_ — it blocks scripted
 clients hitting the Firestore REST API with a stolen config, which Rules alone cannot
 distinguish from the real app.
 
@@ -172,7 +172,7 @@ the Google OAuth **client ID**.
 So: config lives in `.env.local` as `VITE_`-prefixed variables and in GitHub Actions secrets
 for CI, with `.env.local` git-ignored — for environment hygiene, not confidentiality.
 
-**What must never enter this repo:** an OAuth client *secret* (not needed — the browser flow
+**What must never enter this repo:** an OAuth client _secret_ (not needed — the browser flow
 is PKCE-based and secretless), a service-account JSON, or any AI provider API key. On the
 last one, §47 is explicit and ADR-002 agrees: a browser-shipped AI key is readable by
 anyone, so we stop and document rather than leak. That constraint is the direct reason AI is
@@ -206,18 +206,18 @@ rather than hidden.
 
 ## 8. Threat model
 
-| Threat | Control | Residual |
-|---|---|---|
-| Stranger signs in with Google | No `users/{uid}` → default deny | None |
-| User escalates own role | `unchanged('role')` in Rules | None |
-| Supervisor reads project financials | Role gate on every financial collection | None |
-| User writes directly via devtools/REST | Rules validate every field; App Check blocks non-app clients | Rules bugs → emulator test suite |
-| Financial record altered after the fact | Immutable fields; delete denied; append-only audit | Console access by a project admin |
-| Double-submitted payment | `idempotencyKey` checked inside the transaction | None |
-| Bill total ≠ sum of lines | Client-computed, audit-detectable | **Not server-prevented** (R-03) |
-| Departed staff retain file access | Manual folder unshare | Window between the two steps (R-07) |
-| Drive token stolen via XSS | In-memory only; `drive.file` scope caps blast radius | Files created by the app |
-| Quota exhaustion denial-of-service | Bounded queries, no unbounded listeners | Deliberate abuse by a signed-in user (R-10) |
+| Threat                                  | Control                                                      | Residual                                    |
+| --------------------------------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| Stranger signs in with Google           | No `users/{uid}` → default deny                              | None                                        |
+| User escalates own role                 | `unchanged('role')` in Rules                                 | None                                        |
+| Supervisor reads project financials     | Role gate on every financial collection                      | None                                        |
+| User writes directly via devtools/REST  | Rules validate every field; App Check blocks non-app clients | Rules bugs → emulator test suite            |
+| Financial record altered after the fact | Immutable fields; delete denied; append-only audit           | Console access by a project admin           |
+| Double-submitted payment                | `idempotencyKey` checked inside the transaction              | None                                        |
+| Bill total ≠ sum of lines               | Client-computed, audit-detectable                            | **Not server-prevented** (R-03)             |
+| Departed staff retain file access       | Manual folder unshare                                        | Window between the two steps (R-07)         |
+| Drive token stolen via XSS              | In-memory only; `drive.file` scope caps blast radius         | Files created by the app                    |
+| Quota exhaustion denial-of-service      | Bounded queries, no unbounded listeners                      | Deliberate abuse by a signed-in user (R-10) |
 
 The two rows in bold type are the ones I would not describe as solved. Both trace to
 ADR-002, and both close if Blaze is ever enabled.
@@ -238,5 +238,5 @@ service in v1.
 
 Rules change without a passing emulator test suite: blocked in CI. A phase does not close
 with a failing rules test (§43). Phase 15 runs a full review: every collection, every role,
-every operation, including explicit *denial* assertions — testing that ADMIN can write is
+every operation, including explicit _denial_ assertions — testing that ADMIN can write is
 half the job; testing that SUPERVISOR cannot is the half that catches real bugs.

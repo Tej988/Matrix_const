@@ -56,6 +56,15 @@ async function assertNotDuplicate(
   if (!existing.empty) throw new DuplicatePayment(idempotencyKey)
 }
 
+/**
+ * A stored labour payment. `isAdvance` marks money handed over before the
+ * wages that earn it. Documents written before advances existed simply lack
+ * the field, so readers must treat a missing flag as "not an advance".
+ */
+export interface LabourPaymentRecord extends LabourPayment {
+  isAdvance?: boolean | undefined
+}
+
 export function createPaymentRepository(db: Firestore) {
   return {
     // ---- client payments (money in) ----
@@ -189,7 +198,7 @@ export function createPaymentRepository(db: Firestore) {
 
     // ---- labour payments (money out) ----
 
-    async listLabourPayments(projectId: string): Promise<LabourPayment[]> {
+    async listLabourPayments(projectId: string): Promise<LabourPaymentRecord[]> {
       const snap = await getDocs(
         query(
           collection(db, 'labourPayments'),
@@ -197,10 +206,10 @@ export function createPaymentRepository(db: Firestore) {
           orderBy('date', 'desc'),
         ),
       )
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LabourPayment, 'id'>) }))
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LabourPaymentRecord, 'id'>) }))
     },
 
-    async paymentsForLabour(labourId: string): Promise<LabourPayment[]> {
+    async paymentsForLabour(labourId: string): Promise<LabourPaymentRecord[]> {
       const snap = await getDocs(
         query(
           collection(db, 'labourPayments'),
@@ -208,10 +217,13 @@ export function createPaymentRepository(db: Firestore) {
           orderBy('date', 'desc'),
         ),
       )
-      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LabourPayment, 'id'>) }))
+      return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<LabourPaymentRecord, 'id'>) }))
     },
 
-    /** Records a wage payment. Section 15 - never initiates a PhonePe transfer. */
+    /**
+     * Records a wage payment, or an advance against wages not yet earned.
+     * Section 15 - never initiates a PhonePe transfer either way.
+     */
     async recordLabourPayment(
       input: {
         labourId: string
@@ -223,10 +235,14 @@ export function createPaymentRepository(db: Firestore) {
         method: PaymentMethod
         reference: string
         idempotencyKey: string
+        /** Paid before the wages that earn it. Recovered later by the ledger. */
+        isAdvance?: boolean
       },
       actor: { uid: string; displayName: string },
     ): Promise<string> {
       await assertNotDuplicate(db, 'labourPayments', input.idempotencyKey)
+
+      const isAdvance = input.isAdvance ?? false
 
       const paymentRef = doc(collection(db, 'labourPayments'))
       const summaryRef = doc(db, 'projects', input.projectId, 'summary', 'current')
@@ -243,6 +259,7 @@ export function createPaymentRepository(db: Firestore) {
           method: input.method,
           status: 'CONFIRMED',
           idempotencyKey: input.idempotencyKey,
+          isAdvance,
           ...(input.wagePeriodId ? { wagePeriodId: input.wagePeriodId } : {}),
           ...(input.method === 'PHONEPE' && input.reference
             ? { phonepeTransactionId: input.reference }
@@ -264,12 +281,16 @@ export function createPaymentRepository(db: Firestore) {
           date: input.date,
           refType: 'labourPayment',
           refId: paymentRef.id,
-          description: `Wage paid to ${input.labourName} via ${input.method}`,
+          description: `${isAdvance ? 'Advance' : 'Wage'} paid to ${input.labourName} via ${input.method}`,
           status: 'ACTIVE',
           createdBy: actor.uid,
           createdAt: serverTimestamp(),
         })
 
+        // An advance is cash out like any other payment, so it counts in
+        // labourPaid and pushes labourPayable negative until wages catch up.
+        // Recovery is a reporting concern (wageCalculator), not a reason to
+        // leave money out of the summary - that is how a summary drifts.
         const data = summarySnap.data() ?? {}
         const paid = add((data['labourPaidPaise'] as Paise) ?? (0 as Paise), input.amountPaise)
         const earned = (data['labourEarnedPaise'] as Paise) ?? (0 as Paise)
@@ -297,7 +318,7 @@ export function createPaymentRepository(db: Firestore) {
           entityType: 'labourPayment',
           entityId: paymentRef.id,
           projectId: input.projectId,
-          after: { labourName: input.labourName, amountPaise: input.amountPaise },
+          after: { labourName: input.labourName, amountPaise: input.amountPaise, isAdvance },
           at: serverTimestamp(),
         })
       })

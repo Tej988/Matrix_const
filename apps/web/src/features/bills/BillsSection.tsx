@@ -8,6 +8,7 @@ import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount, AmountWithWords } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 import { openBillForPrint } from './billPdf'
 
 const STATUS_TONE: Record<BillStatus, string> = {
@@ -22,6 +23,7 @@ const STATUS_TONE: Record<BillStatus, string> = {
 export function BillsSection({ project }: { project: Project }) {
   const user = useCurrentUser()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const billRepo = useMemo(() => createBillRepository(db), [])
   const measurementRepo = useMemo(() => createMeasurementRepository(db), [])
   const queryClient = useQueryClient()
@@ -95,13 +97,13 @@ export function BillsSection({ project }: { project: Project }) {
         name: 'Matrix Construction',
         addressLines: ['Agra, Uttar Pradesh'],
       })
-      if (!ok) throw new Error('Your browser blocked the print window. Allow pop-ups and retry.')
+      if (!ok) throw new Error(t('popupBlocked'))
     },
     onError: (e) => setError((e as Error).message),
   })
 
   if (!can('bill:read')) return null
-  if (bills.isPending) return <p className="text-slate-500">Loading bills…</p>
+  if (bills.isPending) return <p className="text-slate-500">{t('loading')}</p>
   if (bills.isError) {
     return <QueryError error={bills.error} onRetry={() => void bills.refetch()} what="bills" />
   }
@@ -116,10 +118,12 @@ export function BillsSection({ project }: { project: Project }) {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Bills</h2>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {t('billsTitle')}
+          </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {bills.data.length} {bills.data.length === 1 ? 'bill' : 'bills'}
-            {billable.length > 0 && ` · ${billable.length} approved sheet${billable.length === 1 ? '' : 's'} ready to bill`}
+            {t('countBills', { n: bills.data.length })}
+            {billable.length > 0 && ` · ${t('countSheetsReady', { n: billable.length })}`}
           </p>
         </div>
         {can('bill:create') && billable.length > 0 && (
@@ -128,22 +132,23 @@ export function BillsSection({ project }: { project: Project }) {
             onClick={() => setGenerating((v) => !v)}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
           >
-            {generating ? 'Cancel' : 'Create bill'}
+            {generating ? t('cancel') : t('createBill')}
           </button>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
+        >
           {error}
         </p>
       )}
 
       {generating && (
         <div className="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Choose the approved measurements to bill. Each can only be billed once.
-          </p>
+          <p className="text-sm text-slate-600 dark:text-slate-300">{t('chooseMeasurements')}</p>
           <ul className="space-y-2">
             {billable.map((m) => (
               <li key={m.id}>
@@ -177,8 +182,8 @@ export function BillsSection({ project }: { project: Project }) {
 
           {selectedSheets.length > 0 && (
             <p className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800">
-              Bill total: <AmountWithWords paise={selectedTotal} />
-              {project.taxProfile.mode !== 'NONE' && ' (before tax and deductions)'}
+              {t('billTotal')}: <AmountWithWords paise={selectedTotal} />
+              {project.taxProfile.mode !== 'NONE' && ` ${t('beforeTaxAndDeductions')}`}
             </p>
           )}
 
@@ -189,19 +194,17 @@ export function BillsSection({ project }: { project: Project }) {
             className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
           >
             {generate.isPending
-              ? 'Generating…'
-              : `Generate bill for ${selectedSheets.length} sheet${selectedSheets.length === 1 ? '' : 's'}`}
+              ? t('generating')
+              : t('generateBillFor', { n: selectedSheets.length })}
           </button>
         </div>
       )}
 
       {bills.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No bills yet.</p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noBills')}</p>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {billable.length === 0
-              ? 'Approve a measurement first — only approved work can be billed.'
-              : 'Approved measurements are ready to bill.'}
+            {billable.length === 0 ? t('approveFirst') : t('readyToBill')}
           </p>
         </div>
       ) : (
@@ -220,12 +223,14 @@ export function BillsSection({ project }: { project: Project }) {
                 <Amount paise={b.netAmountPaise} className="font-medium" />
                 {billOutstanding(b) > 0 && b.amountReceivedPaise > 0 && (
                   <p className="text-xs text-slate-500">
-                    <Amount paise={billOutstanding(b)} /> due
+                    <Amount paise={billOutstanding(b)} /> {t('due')}
                   </p>
                 )}
               </div>
 
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_TONE[b.status]}`}>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_TONE[b.status]}`}
+              >
                 {b.status.replace('_', ' ').toLowerCase()}
               </span>
 
@@ -235,7 +240,7 @@ export function BillsSection({ project }: { project: Project }) {
                   onClick={() => print.mutate(b)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                 >
-                  Print
+                  {t('print')}
                 </button>
                 {b.status === 'GENERATED' && can('bill:create') && (
                   <button
@@ -243,19 +248,19 @@ export function BillsSection({ project }: { project: Project }) {
                     onClick={() => markSent.mutate(b)}
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                   >
-                    Mark sent
+                    {t('markSent')}
                   </button>
                 )}
                 {can('bill:cancel') && b.status !== 'CANCELLED' && b.amountReceivedPaise === 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      const reason = window.prompt('Why is this bill being cancelled?')
+                      const reason = window.prompt(t('whyCancelBill'))
                       if (reason) cancel.mutate({ bill: b, reason })
                     }}
                     className="rounded-lg px-3 py-2 text-sm font-medium text-red-700 dark:text-red-400"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 )}
               </div>

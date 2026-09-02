@@ -42,9 +42,7 @@ export function unbilledQty(item: Pick<BoqItem, 'completedQty' | 'billedQty'>): 
   return roundQty(item.completedQty - item.billedQty)
 }
 
-export function completionPercent(
-  item: Pick<BoqItem, 'contractQty' | 'completedQty'>,
-): number {
+export function completionPercent(item: Pick<BoqItem, 'contractQty' | 'completedQty'>): number {
   if (item.contractQty === 0) return 0
   return Math.round((item.completedQty / item.contractQty) * 1000) / 10
 }

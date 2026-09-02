@@ -24,7 +24,8 @@
     "test:coverage": "vitest run --coverage",
     "test:rules": "firebase emulators:exec --only firestore --project demo-matrix-rules \"vitest run --config vitest.rules.config.ts\"",
     "emulators": "firebase emulators:start --only auth,firestore",
-    "check": "npm run lint && npm run typecheck && npm run test && npm run test:rules && npm run build"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run test:rules && npm run build",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

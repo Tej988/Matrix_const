@@ -17,9 +17,7 @@ export function Amount({
 }) {
   const negative = paise < 0
   const tone = !signed ? '' : negative ? 'text-red-600 dark:text-red-400' : ''
-  return (
-    <span className={`tabular-nums ${tone} ${className}`.trim()}>{M.formatPaise(paise)}</span>
-  )
+  return <span className={`tabular-nums ${tone} ${className}`.trim()}>{M.formatPaise(paise)}</span>
 }
 
 /**

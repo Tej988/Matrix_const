@@ -7,6 +7,7 @@ import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
+import { useTranslation } from '../../i18n/useTranslation'
 import { NewMeasurementForm } from './NewMeasurementForm'
 
 const STATUS_TONE: Record<MeasurementStatus, string> = {
@@ -19,6 +20,7 @@ const STATUS_TONE: Record<MeasurementStatus, string> = {
 export function MeasurementsSection({ projectId }: { projectId: string }) {
   const user = useCurrentUser()
   const { can } = useAuth()
+  const { t } = useTranslation()
   const repo = useMemo(() => createMeasurementRepository(db), [])
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
@@ -74,7 +76,7 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
     onSuccess: invalidate,
   })
 
-  if (measurements.isPending) return <p className="text-slate-500">Loading measurements…</p>
+  if (measurements.isPending) return <p className="text-slate-500">{t('loading')}</p>
   if (measurements.isError) {
     return (
       <QueryError
@@ -92,10 +94,10 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Measurement book
+            {t('measurementBook')}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {measurements.data.length} {measurements.data.length === 1 ? 'sheet' : 'sheets'}
+            {t('countSheets', { n: measurements.data.length })}
           </p>
         </div>
         {can('measurement:create') && (
@@ -104,7 +106,7 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
             onClick={() => setAdding((v) => !v)}
             className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
           >
-            {adding ? 'Cancel' : 'New measurement'}
+            {adding ? t('cancel') : t('newMeasurement')}
           </button>
         )}
       </div>
@@ -130,10 +132,8 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
 
       {measurements.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No measurements yet.</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Record work done against the rate card. Only approved sheets can be billed.
-          </p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noMeasurements')}</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('measurementsHint')}</p>
         </div>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
@@ -147,11 +147,11 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
                   <p className="text-sm text-slate-500 dark:text-slate-400">
                     {Dates.formatPeriod(m.period)} · {Dates.formatDateKey(m.date)} ·{' '}
                     {m.enteredByName}
-                    {m.billId && ' · billed'}
+                    {m.billId && ` · ${t('billed')}`}
                   </p>
                   {m.rejectionReason && (
                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                      Rejected: {m.rejectionReason}
+                      {t('rejected')}: {m.rejectionReason}
                     </p>
                   )}
                 </div>
@@ -176,7 +176,7 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
                       disabled={submit.isPending}
                       className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                     >
-                      Submit
+                      {t('submit')}
                     </button>
                   )}
                   {canApprove && (
@@ -187,17 +187,17 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
                         disabled={approve.isPending}
                         className="rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
                       >
-                        Approve
+                        {t('approve')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          const reason = window.prompt('Why is this being rejected?')
+                          const reason = window.prompt(t('whyReject'))
                           if (reason) reject.mutate({ m, reason })
                         }}
                         className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                       >
-                        Reject
+                        {t('reject')}
                       </button>
                     </>
                   )}
@@ -209,10 +209,7 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
       )}
 
       {user.role === 'SUPERVISOR' && measurements.data.some((m) => m.status === 'SUBMITTED') && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Submitted sheets are waiting for the owner to approve. You cannot approve your own
-          measurements.
-        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">{t('cannotApproveOwn')}</p>
       )}
     </section>
   )

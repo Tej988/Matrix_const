@@ -30,9 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
 
   override render() {
     if (this.state.error) {
-      return (
-        <FatalError error={this.state.error} componentStack={this.state.componentStack} />
-      )
+      return <FatalError error={this.state.error} componentStack={this.state.componentStack} />
     }
     return this.props.children
   }

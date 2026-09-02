@@ -149,7 +149,10 @@ describe('supervisors see no money', () => {
 describe('client payments', () => {
   it('lets an accountant record one', async () => {
     await assertSucceeds(
-      setDoc(doc(as(ACCOUNTANT), 'clientPayments', 'cp-2'), clientPayment({ idempotencyKey: 'k2' })),
+      setDoc(
+        doc(as(ACCOUNTANT), 'clientPayments', 'cp-2'),
+        clientPayment({ idempotencyKey: 'k2' }),
+      ),
     )
   })
 
@@ -163,7 +166,10 @@ describe('client payments', () => {
   it('rejects a zero, negative or float amount', async () => {
     for (const amountPaise of [0, -100, 100.5]) {
       await assertFails(
-        setDoc(doc(as(ACCOUNTANT), 'clientPayments', `cp-${amountPaise}`), clientPayment({ amountPaise })),
+        setDoc(
+          doc(as(ACCOUNTANT), 'clientPayments', `cp-${amountPaise}`),
+          clientPayment({ amountPaise }),
+        ),
       )
     }
   })
@@ -200,7 +206,10 @@ describe('client payments', () => {
 describe('labour payments', () => {
   it('lets an accountant record one', async () => {
     await assertSucceeds(
-      setDoc(doc(as(ACCOUNTANT), 'labourPayments', 'lp-2'), labourPayment({ idempotencyKey: 'k3' })),
+      setDoc(
+        doc(as(ACCOUNTANT), 'labourPayments', 'lp-2'),
+        labourPayment({ idempotencyKey: 'k3' }),
+      ),
     )
   })
 
