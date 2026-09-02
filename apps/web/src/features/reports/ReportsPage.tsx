@@ -5,6 +5,7 @@ import { createPaymentRepository } from '@mc/shared/repositories/payments'
 import { createBillRepository } from '@mc/shared/repositories/bills'
 import { createBoqRepository } from '@mc/shared/repositories/boq'
 import { createLabourRepository, createAttendanceRepository } from '@mc/shared/repositories/labour'
+import { createSettingsRepository } from '@mc/shared/repositories/settings'
 import {
   Dates,
   Money,
@@ -14,21 +15,43 @@ import {
   calculateOutstanding,
   calculateWage,
 } from '@mc/shared'
-import type { DateKey, Paise } from '@mc/types'
+import type { BusinessProfile, DateKey, Paise } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 import { useTranslation } from '../../i18n/useTranslation'
-import { openReportForPrint } from './reportPdf'
+import {
+  canShareFiles,
+  headerFrom,
+  openPrintWindow,
+  reportSummaryText,
+  whatsappUrl,
+  writeReport,
+  type PrintableReport,
+  type ReportHeader,
+} from './reportPdf'
+import { ReportPreview } from './ReportPreview'
+import { ReportHeaderDialog } from './ReportHeaderDialog'
+import {
+  BUSINESS_NOT_SET_WARNING,
+  hasBusinessName,
+  letterheadFor,
+  useBusinessProfile,
+} from '../settings/BusinessProfileForm'
 
 /**
  * Reports and export. Sections 37 and 41.
  *
- * Each report is declared ONCE as columns plus rows, then rendered to either
- * PDF or CSV. Defining it twice would guarantee the two drift apart, and a
- * printed report that disagrees with the spreadsheet is worse than having
- * only one of them.
+ * Each report is declared ONCE as columns plus rows, then rendered to the
+ * screen, to a printable page, or to a spreadsheet. Defining it twice would
+ * guarantee the three drift apart, and a printed report that disagrees with
+ * the spreadsheet is worse than having only one of them.
+ *
+ * The screen comes first. Downloading a file was previously the only way to
+ * find out what a report contained, which is backwards - you had to commit to
+ * a document to read it. Now: view it, confirm the letterhead, then print or
+ * share.
  *
  * Amount cells carry raw paise; the renderer decides the presentation - Indian
  * digit grouping for print, a plain decimal for the spreadsheet (where
@@ -52,15 +75,73 @@ interface ReportData {
   totals?: Cell[]
 }
 
+/**
+ * An empty string is a spacer in a totals row, not a zero.
+ *
+ * `Number('')` is 0, which printed "Rs 0" under a Rate column that has no
+ * meaningful total. An empty cell stays empty.
+ */
 const forCsv = (cell: Cell, kind: ColumnKind): string =>
-  kind === 'amount' ? csvAmount(Number(cell)) : String(cell)
+  cell === '' ? '' : kind === 'amount' ? csvAmount(Number(cell)) : String(cell)
 
 const forPrint = (cell: Cell, kind: ColumnKind): string =>
-  kind === 'amount'
-    ? Money.formatPaise(Number(cell) as Paise)
-    : kind === 'number'
-      ? Number(cell).toLocaleString('en-IN')
-      : String(cell)
+  cell === ''
+    ? ''
+    : kind === 'amount'
+      ? Money.formatPaise(Number(cell) as Paise)
+      : kind === 'number'
+        ? Number(cell).toLocaleString('en-IN')
+        : String(cell)
+
+/** Column indices to right-align. Numeric columns, essentially. */
+const numericColumnsOf = (columns: readonly Column[]): number[] =>
+  columns.map((c, i) => (c.kind === 'text' ? -1 : i)).filter((i) => i >= 0)
+
+/**
+ * The one place a report is turned into something presentable. The preview and
+ * the print window both consume the result, so they cannot disagree.
+ */
+function toPrintable(data: ReportData, header: ReportHeader): PrintableReport {
+  const kindAt = (i: number): ColumnKind => data.columns[i]?.kind ?? 'text'
+  return {
+    header,
+    columns: data.columns.map((c) => c.header),
+    numericColumns: numericColumnsOf(data.columns),
+    rows: data.rows.map((row) => row.map((cell, i) => forPrint(cell, kindAt(i)))),
+    ...(data.stats ? { stats: data.stats } : {}),
+    ...(data.totals ? { totals: data.totals.map((c, i) => forPrint(c, kindAt(i))) } : {}),
+  }
+}
+
+function csvFileFor(data: ReportData): File {
+  const kindAt = (i: number): ColumnKind => data.columns[i]?.kind ?? 'text'
+  const csv = toCsv(
+    data.columns.map((c) => c.header),
+    data.rows.map((row) => row.map((cell, i) => forCsv(cell, kindAt(i)))),
+  )
+  const [content, mime] = csvBlobParts(csv)
+  return new File([content], `${data.file}.csv`, { type: mime })
+}
+
+/**
+ * An unset business name prints the loud placeholder rather than an empty
+ * band across the top of the page - letterheadFor()'s rule, applied to a
+ * per-document header. A blank heading looks like a rendering fault and gets
+ * sent to a client anyway.
+ */
+function withPlaceholder(header: ReportHeader): ReportHeader {
+  if (header.businessName.trim() !== '') return header
+  return { ...header, businessName: letterheadFor(undefined).name }
+}
+
+/** A report that has been built and is on screen. */
+interface OpenReport {
+  data: ReportData
+  /** The stored profile exactly as saved - the dialog needs to see it empty. */
+  saved: BusinessProfile
+  /** Editable for this document only. Never written back to Settings. */
+  header: ReportHeader
+}
 
 export function ReportsPage() {
   const user = useCurrentUser()
@@ -71,16 +152,33 @@ export function ReportsPage() {
   const boqRepo = useMemo(() => createBoqRepository(db), [])
   const labourRepo = useMemo(() => createLabourRepository(db), [])
   const attendanceRepo = useMemo(() => createAttendanceRepository(db), [])
+  const settingsRepo = useMemo(() => createSettingsRepository(db), [])
 
   const [projectId, setProjectId] = useState('')
   const [period, setPeriod] = useState(Dates.currentPeriod() as string)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [open, setOpen] = useState<OpenReport | null>(null)
+  const [dialog, setDialog] = useState<'pdf' | 'header' | null>(null)
 
   const projects = useQuery({
     queryKey: ['projects', user.uid, user.role],
     queryFn: () => projectRepo.listForUser(user.uid, user.role),
   })
+
+  /* Only drives the warning below - view() re-reads the profile so the
+     letterhead on a document is never a stale cache. */
+  const business = useBusinessProfile()
+  const letterheadMissing = business.isSuccess && !hasBusinessName(business.data)
+
+  const printable = useMemo(
+    () => (open ? toPrintable(open.data, withPlaceholder(open.header)) : null),
+    [open],
+  )
+  const csvFile = useMemo(() => (open ? csvFileFor(open.data) : null), [open])
+  /* False on essentially every desktop. The spreadsheet share button does not
+     render where it would not work, rather than failing on the tap. */
+  const canAttachCsv = useMemo(() => (csvFile ? canShareFiles([csvFile]) : false), [csvFile])
 
   const activeId = projectId || projects.data?.[0]?.id || ''
   const activeProject = projects.data?.find((p) => p.id === activeId)
@@ -96,55 +194,72 @@ export function ReportsPage() {
   const to = days.at(-1) as DateKey
   const periodLabel = Dates.formatPeriod(period as ReturnType<typeof Dates.currentPeriod>)
 
-  async function emit(key: string, format: 'pdf' | 'csv', build: () => Promise<ReportData>) {
-    setBusy(`${key}-${format}`)
+  /** Builds the report and puts it on screen. Nothing is generated yet. */
+  async function view(key: string, build: () => Promise<ReportData>) {
+    setBusy(key)
     setError(null)
+    setDialog(null)
     try {
-      const data = await build()
-
-      if (format === 'csv') {
-        const csv = toCsv(
-          data.columns.map((c) => c.header),
-          data.rows.map((row) =>
-            row.map((cell, i) => forCsv(cell, data.columns[i]?.kind ?? 'text')),
-          ),
-        )
-        const [content, mime] = csvBlobParts(csv)
-        const url = URL.createObjectURL(new Blob([content], { type: mime }))
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${data.file}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-        return
-      }
-
-      const opened = openReportForPrint(
-        {
+      // The letterhead is read here rather than compiled in. It was a literal
+      // once and put the wrong business on real documents.
+      const [data, saved] = await Promise.all([build(), settingsRepo.getBusiness()])
+      setOpen({
+        data,
+        saved,
+        header: headerFrom(saved, {
           title: data.title,
-          businessName: 'Matrix Construction',
+          date: Dates.todayKey(),
           ...(data.subtitle ? { subtitle: data.subtitle } : {}),
-          ...(data.stats ? { stats: data.stats } : {}),
-          ...(data.totals
-            ? { totals: data.totals.map((c, i) => forPrint(c, data.columns[i]?.kind ?? 'text')) }
-            : {}),
-          numericColumns: data.columns
-            .map((c, i) => (c.kind === 'text' ? -1 : i))
-            .filter((i) => i >= 0),
-        },
-        data.columns.map((c) => c.header),
-        data.rows.map((row) =>
-          row.map((cell, i) => forPrint(cell, data.columns[i]?.kind ?? 'text')),
-        ),
-      )
-      if (!opened) {
-        setError(t('popupBlocked'))
-      }
+        }),
+      })
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setBusy(null)
     }
+  }
+
+  /**
+   * Generates the printable page.
+   *
+   * Fully synchronous, and that is the point: the report was built when it was
+   * viewed, so `window.open()` still holds the user-activation from this
+   * click. Opening it after an await loses that activation and every browser
+   * blocks the pop-up silently - which is exactly how this broke the first time.
+   */
+  function generatePdf(header: ReportHeader) {
+    if (!open) return
+    const win = openPrintWindow()
+    if (!win) {
+      setError(t('popupBlocked'))
+      return
+    }
+    writeReport(win, toPrintable(open.data, withPlaceholder(header)))
+    setOpen({ ...open, header })
+    setDialog(null)
+  }
+
+  function downloadCsv() {
+    if (!csvFile) return
+    const url = URL.createObjectURL(csvFile)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = csvFile.name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /**
+   * The spreadsheet is the one artefact we hold as a real binary, so it is the
+   * one thing that can genuinely be attached. Called straight from the click -
+   * navigator.share() needs the same user-activation window.open() does.
+   */
+  function shareCsv() {
+    if (!csvFile || !printable) return
+    void navigator.share({ files: [csvFile], title: printable.header.title }).catch((e: Error) => {
+      // Dismissing the share sheet rejects with AbortError. Not a failure.
+      if (e.name !== 'AbortError') setError(e.message)
+    })
   }
 
   const reports: {
@@ -450,77 +565,168 @@ export function ReportsPage() {
         </p>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className={labelClass}>{t('project')}</span>
-          <select
-            value={activeId}
-            onChange={(e) => setProjectId(e.target.value)}
-            className={inputClass}
-          >
-            {projects.data.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className={labelClass}>{t('monthForAttendance')}</span>
-          <input
-            type="month"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className={inputClass}
-          />
-        </label>
-      </div>
-
-      {summary.data && (
-        <section className="grid gap-3 sm:grid-cols-4">
-          <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
-          <Stat label={t('billed')} paise={summary.data.totalBilledPaise} />
-          <Stat label={t('received')} paise={summary.data.totalReceivedPaise} />
-          <Stat label={t('receivable')} paise={summary.data.receivablePaise} />
-        </section>
+      {letterheadMissing && (
+        <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {BUSINESS_NOT_SET_WARNING}
+        </p>
       )}
 
-      <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-        {reports.map((r) => (
-          <li key={r.key} className="flex flex-wrap items-center gap-3 p-4">
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-slate-900 dark:text-slate-100">{r.title}</p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
-            </div>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={() => void emit(r.key, 'pdf', r.build)}
-                disabled={busy !== null || activeId === ''}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
-              >
-                {busy === `${r.key}-pdf` ? t('preparing') : 'PDF'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void emit(r.key, 'csv', r.build)}
-                disabled={busy !== null || activeId === ''}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-600"
-              >
-                {busy === `${r.key}-csv` ? t('preparing') : t('excel')}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {open && printable ? (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(null)
+                setDialog(null)
+                setError(null)
+              }}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
+            >
+              ← {t('back')}
+            </button>
+            <div className="flex-1" />
 
-      <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-        <strong>PDF</strong> opens a print view — choose &ldquo;Save as PDF&rdquo; as the printer.
-        <br />
-        <strong>Backup (§41).</strong> These downloads are the backup mechanism. There is no
-        automatic off-site backup, because that needs a scheduled job the free plan cannot run.
-        Download the outstanding, billing and payment reports periodically and keep them safe.
-      </p>
+            <button
+              type="button"
+              onClick={() => setDialog('header')}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
+            >
+              Edit header
+            </button>
+            <button
+              type="button"
+              onClick={() => setDialog('pdf')}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+            >
+              PDF
+            </button>
+            <a
+              href={whatsappUrl(reportSummaryText(printable))}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
+            >
+              Send summary on WhatsApp
+            </a>
+          </div>
+
+          <ReportPreview report={printable} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={downloadCsv}
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
+            >
+              {t('excel')}
+            </button>
+            {canAttachCsv && (
+              <button
+                type="button"
+                onClick={shareCsv}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
+              >
+                Send spreadsheet as a file
+              </button>
+            )}
+          </div>
+
+          {/* Say exactly what each button does. A button labelled "Share PDF on
+              WhatsApp" that sends text is a lie the owner finds out about in
+              front of a client. */}
+          <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <strong>PDF</strong> opens a print view — choose &ldquo;Save as PDF&rdquo; as the
+            printer.
+            <br />
+            <strong>WhatsApp</strong> sends the header, the summary figures and the totals as a
+            message. It cannot carry the PDF itself: a web page cannot hand a printed file to
+            WhatsApp. Save the PDF first and attach it in the chat if the full sheet is needed.
+          </p>
+        </section>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className={labelClass}>{t('project')}</span>
+              <select
+                value={activeId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className={inputClass}
+              >
+                {projects.data.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className={labelClass}>{t('monthForAttendance')}</span>
+              <input
+                type="month"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          </div>
+
+          {summary.data && (
+            <section className="grid gap-3 sm:grid-cols-4">
+              <Stat label={t('contractValue')} paise={summary.data.contractValuePaise} />
+              <Stat label={t('billed')} paise={summary.data.totalBilledPaise} />
+              <Stat label={t('received')} paise={summary.data.totalReceivedPaise} />
+              <Stat label={t('receivable')} paise={summary.data.receivablePaise} />
+            </section>
+          )}
+
+          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
+            {reports.map((r) => (
+              <li key={r.key} className="flex flex-wrap items-center gap-3 p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{r.title}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void view(r.key, r.build)}
+                  disabled={busy !== null || activeId === ''}
+                  className="shrink-0 rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+                >
+                  {busy === r.key ? t('preparing') : 'View'}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            Open a report to read it on screen. The PDF, the WhatsApp summary and the spreadsheet
+            are all offered from there.
+            <br />
+            <strong>Backup (§41).</strong> These downloads are the backup mechanism. There is no
+            automatic off-site backup, because that needs a scheduled job the free plan cannot run.
+            Download the outstanding, billing and payment reports periodically and keep them safe.
+          </p>
+        </>
+      )}
+
+      {open && dialog && (
+        <ReportHeaderDialog
+          initial={open.header}
+          saved={open.saved}
+          submitLabel={dialog === 'pdf' ? 'Generate PDF' : 'Use these details'}
+          onCancel={() => setDialog(null)}
+          onSubmit={(header) => {
+            if (dialog === 'pdf') {
+              generatePdf(header)
+              return
+            }
+            setOpen({ ...open, header })
+            setDialog(null)
+          }}
+        />
+      )}
     </div>
   )
 }

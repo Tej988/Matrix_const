@@ -10,10 +10,7 @@ import {
   IconAttendance,
   IconProject,
   IconLabour,
-  IconWages,
   IconReport,
-  IconClient,
-  IconUsers,
   IconSettings,
   type Icon,
 } from '../components/icons'
@@ -34,6 +31,15 @@ interface NavItem {
   permission?: Permission
 }
 
+/*
+ * Only the pages used daily. Clients and Users moved into Settings: they are
+ * set-up screens touched a few times a year, and every extra tab in a
+ * horizontal scroller makes the ones that matter harder to hit on a phone
+ * (spec §28 - minimal navigation, important actions obvious).
+ *
+ * Wages folded into Labour, because "what did Ramesh earn and what has he been
+ * paid" is one question about one person, not two screens.
+ */
 const NAV: NavItem[] = [
   { to: '/', labelKey: 'navDashboard', Icon: IconDashboard },
   {
@@ -44,10 +50,7 @@ const NAV: NavItem[] = [
   },
   { to: '/projects', labelKey: 'navProjects', Icon: IconProject, permission: 'project:read' },
   { to: '/labour', labelKey: 'navLabour', Icon: IconLabour, permission: 'labour:read' },
-  { to: '/wages', labelKey: 'navWages', Icon: IconWages, permission: 'wage:read' },
   { to: '/reports', labelKey: 'navReports', Icon: IconReport, permission: 'report:read' },
-  { to: '/clients', labelKey: 'navClients', Icon: IconClient, permission: 'client:read' },
-  { to: '/users', labelKey: 'navUsers', Icon: IconUsers, permission: 'user:manage' },
   { to: '/settings', labelKey: 'navSettings', Icon: IconSettings },
 ]
 

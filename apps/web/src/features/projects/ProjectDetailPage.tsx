@@ -161,13 +161,19 @@ export function ProjectDetailPage() {
         </>
       )}
 
-      <BoqSection projectId={p.id} contractValuePaise={p.contractValuePaise} />
-
-      <MeasurementsSection projectId={p.id} />
-
+      {/*
+        Billing and money first. Rate card and measurements are set-up and
+        data-entry; bills and receipts are what the owner opens a project to
+        check. Ordered by how often each is read, not by the order the data
+        flows through them.
+      */}
       <BillsSection project={p} />
 
       <FinanceSection project={p} />
+
+      <BoqSection projectId={p.id} contractValuePaise={p.contractValuePaise} />
+
+      <MeasurementsSection projectId={p.id} />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createBillRepository } from '@mc/shared/repositories/bills'
 import { createMeasurementRepository } from '@mc/shared/repositories/measurements'
+import { createSettingsRepository } from '@mc/shared/repositories/settings'
 import { Dates, Money, isBillable, billOutstanding } from '@mc/shared'
 import type { Bill, BillStatus, Measurement, Project } from '@mc/types'
 import { db } from '../../lib/firebase'
@@ -9,7 +10,13 @@ import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount, AmountWithWords } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 import { useTranslation } from '../../i18n/useTranslation'
-import { openBillForPrint } from './billPdf'
+import { openPrintWindow, writeBill } from './billPdf'
+import {
+  BUSINESS_NOT_SET_WARNING,
+  hasBusinessName,
+  letterheadFor,
+  useBusinessProfile,
+} from '../settings/BusinessProfileForm'
 
 const STATUS_TONE: Record<BillStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -26,6 +33,7 @@ export function BillsSection({ project }: { project: Project }) {
   const { t } = useTranslation()
   const billRepo = useMemo(() => createBillRepository(db), [])
   const measurementRepo = useMemo(() => createMeasurementRepository(db), [])
+  const settingsRepo = useMemo(() => createSettingsRepository(db), [])
   const queryClient = useQueryClient()
   const [generating, setGenerating] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -41,6 +49,11 @@ export function BillsSection({ project }: { project: Project }) {
     queryFn: () => measurementRepo.listForProject(project.id),
   })
 
+  /* Only drives the warning below. The printer reads the profile again inside
+     the mutation, so what lands on paper is never a stale cache. */
+  const business = useBusinessProfile()
+  const letterheadMissing = business.isSuccess && !hasBusinessName(business.data)
+
   const billable = (measurements.data ?? []).filter(isBillable)
 
   const invalidateAll = () => {
@@ -51,7 +64,10 @@ export function BillsSection({ project }: { project: Project }) {
 
   const generate = useMutation({
     mutationFn: async (chosen: Measurement[]) => {
-      const perSheet = await Promise.all(chosen.map((m) => measurementRepo.listItems(m.id)))
+      const [perSheet, profile] = await Promise.all([
+        Promise.all(chosen.map((m) => measurementRepo.listItems(m.id))),
+        settingsRepo.getBusiness(),
+      ])
       const dates = chosen.map((m) => m.date).sort()
       return billRepo.generate(
         {
@@ -61,7 +77,9 @@ export function BillsSection({ project }: { project: Project }) {
           billDate: Dates.todayKey(),
           periodFrom: dates[0] ?? Dates.todayKey(),
           periodTo: dates.at(-1) ?? Dates.todayKey(),
-          numberPrefix: 'MC',
+          // The prefix the owner set, not a literal. A bill number is
+          // permanent, so it must not depend on what was compiled in.
+          numberPrefix: profile.billPrefix,
         },
         { uid: user.uid, displayName: user.displayName },
       )
@@ -91,15 +109,24 @@ export function BillsSection({ project }: { project: Project }) {
   })
 
   const print = useMutation({
-    mutationFn: async (bill: Bill) => {
-      const items = await billRepo.listItems(bill.id)
-      const ok = openBillForPrint(bill, items, {
-        name: 'Matrix Construction',
-        addressLines: ['Agra, Uttar Pradesh'],
-      })
-      if (!ok) throw new Error(t('popupBlocked'))
+    // The window is claimed by the caller, synchronously in the click handler,
+    // and passed in. Opening it here - after the await - would lose
+    // user-activation and every browser would block it silently.
+    mutationFn: async ({ bill, win }: { bill: Bill; win: Window }) => {
+      // Read alongside the line items rather than from the render-time cache:
+      // a letterhead corrected a minute ago must be on this bill, and the
+      // round trip is free next to the one we are already making.
+      const [items, profile] = await Promise.all([
+        billRepo.listItems(bill.id),
+        settingsRepo.getBusiness(),
+      ])
+      writeBill(win, bill, items, letterheadFor(profile))
     },
-    onError: (e) => setError((e as Error).message),
+    onError: (e, vars) => {
+      // Otherwise the claimed window sits on "Preparing…" forever.
+      vars.win.close()
+      setError((e as Error).message)
+    },
   })
 
   if (!can('bill:read')) return null
@@ -143,6 +170,12 @@ export function BillsSection({ project }: { project: Project }) {
           className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-300"
         >
           {error}
+        </p>
+      )}
+
+      {letterheadMissing && (
+        <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          {BUSINESS_NOT_SET_WARNING}
         </p>
       )}
 
@@ -237,7 +270,14 @@ export function BillsSection({ project }: { project: Project }) {
               <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
-                  onClick={() => print.mutate(b)}
+                  onClick={() => {
+                    const win = openPrintWindow()
+                    if (!win) {
+                      setError(t('popupBlocked'))
+                      return
+                    }
+                    print.mutate({ bill: b, win })
+                  }}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                 >
                   {t('print')}

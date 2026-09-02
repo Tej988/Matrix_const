@@ -6,7 +6,9 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  setDoc,
   where,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore'
 import type {
@@ -21,6 +23,7 @@ import type {
   WagePeriod,
 } from '@mc/types'
 import { add, subtract } from '../money/index'
+import type { DocumentKind, StoredFileRef } from '../storage/index'
 
 /**
  * All money movement. Every write here follows the same shape:
@@ -223,6 +226,12 @@ export function createPaymentRepository(db: Firestore) {
     /**
      * Records a wage payment, or an advance against wages not yet earned.
      * Section 15 - never initiates a PhonePe transfer either way.
+     *
+     * `date` is the day the money changed hands, supplied by the caller rather
+     * than assumed to be today: cash paid on site on Friday is routinely
+     * entered on Monday, and dating it Monday moves it into the wrong wage
+     * period. `paidByUid`/`paidByName` are who handed it over, which is a
+     * different question from who typed it in (`createdBy`).
      */
     async recordLabourPayment(
       input: {
@@ -237,6 +246,10 @@ export function createPaymentRepository(db: Firestore) {
         idempotencyKey: string
         /** Paid before the wages that earn it. Recovered later by the ledger. */
         isAdvance?: boolean
+        paidByUid: string
+        paidByName: string
+        /** An already-uploaded proof. Absent is normal - ADR-009 fails soft. */
+        documentId?: string
       },
       actor: { uid: string; displayName: string },
     ): Promise<string> {
@@ -246,9 +259,18 @@ export function createPaymentRepository(db: Firestore) {
 
       const paymentRef = doc(collection(db, 'labourPayments'))
       const summaryRef = doc(db, 'projects', input.projectId, 'summary', 'current')
+      const documentRef = input.documentId ? doc(db, 'documents', input.documentId) : null
 
       await runTransaction(db, async (tx) => {
         const summarySnap = await tx.get(summaryRef)
+        /*
+         * Read before writing the back-pointer, and only write it if the record
+         * is really there. A blind write would be a CREATE if the metadata
+         * record had gone missing, Rules would reject it for having no
+         * `provider`, and a missing attachment would take the payment down with
+         * it. ADR-009 is explicit: a file must never fail a payment.
+         */
+        const documentSnap = documentRef ? await tx.get(documentRef) : null
 
         tx.set(paymentRef, {
           labourId: input.labourId,
@@ -260,7 +282,10 @@ export function createPaymentRepository(db: Firestore) {
           status: 'CONFIRMED',
           idempotencyKey: input.idempotencyKey,
           isAdvance,
+          paidByUid: input.paidByUid,
+          paidByName: input.paidByName,
           ...(input.wagePeriodId ? { wagePeriodId: input.wagePeriodId } : {}),
+          ...(input.documentId ? { documentId: input.documentId } : {}),
           ...(input.method === 'PHONEPE' && input.reference
             ? { phonepeTransactionId: input.reference }
             : {}),
@@ -273,6 +298,13 @@ export function createPaymentRepository(db: Firestore) {
           updatedBy: actor.uid,
         })
 
+        if (documentRef && documentSnap?.exists()) {
+          tx.update(documentRef, {
+            linkedRefType: 'labourPayment',
+            linkedRefId: paymentRef.id,
+          })
+        }
+
         tx.set(doc(collection(db, 'transactions')), {
           projectId: input.projectId,
           type: 'LABOUR_PAYMENT',
@@ -281,7 +313,7 @@ export function createPaymentRepository(db: Firestore) {
           date: input.date,
           refType: 'labourPayment',
           refId: paymentRef.id,
-          description: `${isAdvance ? 'Advance' : 'Wage'} paid to ${input.labourName} via ${input.method}`,
+          description: `${isAdvance ? 'Advance' : 'Wage'} paid to ${input.labourName} via ${input.method} by ${input.paidByName}`,
           status: 'ACTIVE',
           createdBy: actor.uid,
           createdAt: serverTimestamp(),
@@ -318,12 +350,106 @@ export function createPaymentRepository(db: Firestore) {
           entityType: 'labourPayment',
           entityId: paymentRef.id,
           projectId: input.projectId,
-          after: { labourName: input.labourName, amountPaise: input.amountPaise, isAdvance },
+          after: {
+            labourName: input.labourName,
+            amountPaise: input.amountPaise,
+            isAdvance,
+            date: input.date,
+            paidByUid: input.paidByUid,
+            paidByName: input.paidByName,
+            ...(input.documentId ? { documentId: input.documentId } : {}),
+          },
           at: serverTimestamp(),
         })
       })
 
       return paymentRef.id
+    },
+
+    // ---- attachments ----
+    //
+    // The `documents` collection has no repository of its own yet, and it lands
+    // here rather than getting one because payment proofs are the first and
+    // only writer of it. The alternative - a component importing Firestore
+    // directly - breaks the one layering rule the project has
+    // (ARCHITECTURE.md section 4). Move this out the day a second caller
+    // appears.
+
+    /**
+     * Storage-agnostic file metadata (ADR-009). `provider` and `externalId` are
+     * whatever the adapter handed back; nothing here interprets them.
+     *
+     * `linkedRefId` is optional because a proof is usually uploaded a moment
+     * BEFORE the payment it belongs to exists. `recordLabourPayment` fills it
+     * in from inside the same transaction that creates the payment.
+     */
+    async recordDocument(
+      input: {
+        ref: StoredFileRef
+        kind: DocumentKind
+        projectId: string
+        linkedRefType: string
+        linkedRefId?: string
+      },
+      actor: { uid: string; displayName: string },
+    ): Promise<string> {
+      const documentRef = doc(collection(db, 'documents'))
+
+      await setDoc(documentRef, {
+        projectId: input.projectId,
+        kind: input.kind,
+        provider: input.ref.provider,
+        externalId: input.ref.externalId,
+        fileName: input.ref.fileName,
+        mimeType: input.ref.mimeType,
+        sizeBytes: input.ref.sizeBytes,
+        linkedRefType: input.linkedRefType,
+        ...(input.linkedRefId ? { linkedRefId: input.linkedRefId } : {}),
+        status: 'AVAILABLE',
+        uploadedBy: actor.uid,
+        uploadedAt: serverTimestamp(),
+      })
+
+      return documentRef.id
+    },
+
+    /**
+     * Attaches a proof to a payment that is already recorded - the retry path
+     * for ADR-009's fail-soft rule. The money went in without the photo; this
+     * catches the photo up afterwards without touching a single figure.
+     *
+     * A batch rather than a transaction: nothing is read, nothing is computed,
+     * and no amount moves.
+     */
+    async attachDocumentToLabourPayment(
+      input: { paymentId: string; documentId: string; projectId: string },
+      actor: { uid: string; displayName: string },
+    ): Promise<void> {
+      const batch = writeBatch(db)
+
+      batch.update(doc(db, 'labourPayments', input.paymentId), {
+        documentId: input.documentId,
+        updatedAt: serverTimestamp(),
+        updatedBy: actor.uid,
+      })
+
+      batch.update(doc(db, 'documents', input.documentId), {
+        linkedRefType: 'labourPayment',
+        linkedRefId: input.paymentId,
+      })
+
+      batch.set(doc(collection(db, 'auditLogs')), {
+        userId: actor.uid,
+        userName: actor.displayName,
+        action: 'LABOUR_PAYMENT_PROOF_ATTACHED',
+        entityType: 'labourPayment',
+        entityId: input.paymentId,
+        projectId: input.projectId,
+        after: { documentId: input.documentId },
+        at: serverTimestamp(),
+      })
+
+      await batch.commit()
     },
 
     // ---- expenses ----

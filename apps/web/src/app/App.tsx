@@ -14,6 +14,7 @@ import { ProjectDetailPage } from '../features/projects/ProjectDetailPage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { AttendancePage } from '../features/attendance/AttendancePage'
 import { LabourPage } from '../features/labour/LabourPage'
+import { LabourDetailPage } from '../features/labour/LabourDetailPage'
 import { WagesPage } from '../features/wages/WagesPage'
 import { ReportsPage } from '../features/reports/ReportsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
@@ -98,6 +99,22 @@ function AuthGate() {
                 </RequirePermission>
               }
             />
+            {/* One person, all of it: their month, their wages, their
+                payments. Gated on `labour:read` and not on money - the page
+                itself hides every figure from a role without
+                `financials:view`, so a supervisor still gets the roster and
+                the register. */}
+            <Route
+              path="labour/:labourId"
+              element={
+                <RequirePermission permission="labour:read">
+                  <LabourDetailPage />
+                </RequirePermission>
+              }
+            />
+            {/* Off the nav, still routable: the payroll table is how a whole
+                site gets paid out at month end, and the person page links to
+                it. */}
             <Route
               path="wages"
               element={

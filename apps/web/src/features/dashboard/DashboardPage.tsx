@@ -12,6 +12,7 @@ import { db } from '../../lib/firebase'
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { useTranslation } from '../../i18n/useTranslation'
+import { PaymentsChart, bucketByMonth } from './PaymentsChart'
 import {
   IconAttendance,
   IconBill,
@@ -96,14 +97,18 @@ export function DashboardPage() {
     enabled: active.length > 0,
   })
 
+  /* All bills, not just unpaid - the chart needs the full history, and
+     filtering here rather than in a second query keeps the read count flat. */
   const bills = useQuery({
     queryKey: ['dashboard-bills', active.map((p) => p.id).join(',')],
     queryFn: async () => {
       const all = await Promise.all(active.map((p) => billRepo.listForProject(p.id)))
-      return all.flat().filter((b) => b.status !== 'CANCELLED' && billOutstanding(b) > 0)
+      return all.flat().filter((b) => b.status !== 'CANCELLED')
     },
     enabled: showMoney && active.length > 0,
   })
+
+  const unpaidBills = (bills.data ?? []).filter((b) => billOutstanding(b) > 0)
 
   const payments = useQuery({
     queryKey: ['dashboard-payments', active.map((p) => p.id).join(',')],
@@ -113,10 +118,16 @@ export function DashboardPage() {
         .flat()
         .filter((p) => p.status === 'CONFIRMED')
         .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 6)
     },
     enabled: showMoney && active.length > 0,
   })
+
+  const monthly = bucketByMonth(
+    (bills.data ?? []).map((b) => ({ date: b.billDate, amountPaise: b.netAmountPaise })),
+    (payments.data ?? []).map((p) => ({ date: p.date, amountPaise: p.amountPaise })),
+    6,
+    today,
+  )
 
   const pendingApproval = useQuery({
     queryKey: ['dashboard-measurements', active.map((p) => p.id).join(',')],
@@ -158,12 +169,12 @@ export function DashboardPage() {
       to: '/projects',
     })
   }
-  if (showMoney && (bills.data?.length ?? 0) > 0) {
-    const due = Money.sum((bills.data ?? []).map(billOutstanding))
+  if (showMoney && unpaidBills.length > 0) {
+    const due = Money.sum(unpaidBills.map(billOutstanding))
     attention.push({
       key: 'bills',
       Icon: IconBill,
-      text: `${bills.data?.length} ${t('pendingBills').toLowerCase()} — ${Money.formatPaise(due)}`,
+      text: `${unpaidBills.length} ${t('pendingBills').toLowerCase()} — ${Money.formatPaise(due)}`,
       to: '/projects',
     })
   }
@@ -245,7 +256,19 @@ export function DashboardPage() {
         </section>
       )}
 
-      {/* 3. Current working area. */}
+      {/* 3. The money rhythm. Received is the story; billed is context. */}
+      {showMoney && (
+        <section>
+          <h2 className={sectionHeading}>
+            {t('received')} · {t('billed')}
+          </h2>
+          <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+            <PaymentsChart data={monthly} />
+          </div>
+        </section>
+      )}
+
+      {/* 4. Current working area. */}
       <section>
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className={sectionHeading}>{t('activeSites')}</h2>
@@ -285,7 +308,7 @@ export function DashboardPage() {
               <EmptyCard text={t('noPaymentsYet')} />
             ) : (
               <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-                {payments.data?.map((p) => (
+                {payments.data?.slice(0, 6).map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="font-medium text-slate-900 tabular-nums dark:text-slate-100">
@@ -304,11 +327,11 @@ export function DashboardPage() {
 
           <section>
             <h2 className={sectionHeading}>{t('pendingBills')}</h2>
-            {(bills.data?.length ?? 0) === 0 ? (
+            {unpaidBills.length === 0 ? (
               <EmptyCard text={t('noPendingBills')} />
             ) : (
               <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-                {bills.data?.slice(0, 6).map((b) => (
+                {unpaidBills.slice(0, 6).map((b) => (
                   <li key={b.id} className="flex items-center justify-between gap-3 p-3">
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-900 dark:text-slate-100">

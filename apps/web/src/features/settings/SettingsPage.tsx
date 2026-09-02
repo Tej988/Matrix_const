@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { createProjectRepository } from '@mc/shared/repositories/projects'
 import { createReconcileRepository } from '@mc/shared/repositories/reconcile'
 import { Dates, AI_STATUS } from '@mc/shared'
 import type { Paise, Project } from '@mc/types'
 import { db } from '../../lib/firebase'
-import { useCurrentUser } from '../auth/authContext'
+import { useAuth, useCurrentUser } from '../auth/authContext'
 import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 import { useTranslation } from '../../i18n/useTranslation'
 import { resetTour } from '../tour/Tour'
+import { BusinessProfileForm } from './BusinessProfileForm'
 
 /**
  * Settings, and the reconciliation tool that R-04 exists for.
@@ -21,6 +23,7 @@ import { resetTour } from '../tour/Tour'
  */
 export function SettingsPage() {
   const user = useCurrentUser()
+  const { can } = useAuth()
   const { t, locale, setLocale } = useTranslation()
   const projectRepo = useMemo(() => createProjectRepository(db), [])
   const reconcileRepo = useMemo(() => createReconcileRepository(db), [])
@@ -70,6 +73,53 @@ export function SettingsPage() {
           {t('settingsTitle')}
         </h1>
       </header>
+
+      {/* First on the page because it is the only setting that ends up in a
+          client's hands. It was hardcoded once and put the wrong name on real
+          invoices - see BusinessProfileForm. */}
+      {can('settings:write') && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Business details
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              The letterhead printed on every bill and quotation.
+            </p>
+          </div>
+          <BusinessProfileForm />
+        </section>
+      )}
+
+      {/* Clients and Users were moved off the nav: they are set-up screens
+          touched a few times a year, and every extra tab makes the daily ones
+          harder to hit on a phone (§28). They live here instead of vanishing. */}
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Set up</h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {can('client:read') && (
+            <SetupLink
+              to="/clients"
+              label={t('clientsTitle')}
+              hint="Who you bill. Names appear on every invoice."
+            />
+          )}
+          {can('user:manage') && (
+            <SetupLink
+              to="/users"
+              label={t('navUsers')}
+              hint="Who can sign in, and what each of them may see."
+            />
+          )}
+          {can('wage:read') && (
+            <SetupLink
+              to="/wages"
+              label={t('wagesTitle')}
+              hint="Payroll across every project in one table."
+            />
+          )}
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -236,3 +286,21 @@ function humanise(field: string): string {
 }
 
 export type { Paise }
+
+/** A card linking to a set-up screen that no longer sits on the nav. */
+function SetupLink({ to, label, hint }: { to: string; label: string; hint: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 transition hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500"
+    >
+      <span className="min-w-0">
+        <span className="block font-medium text-slate-900 dark:text-slate-100">{label}</span>
+        <span className="block text-sm text-slate-500 dark:text-slate-400">{hint}</span>
+      </span>
+      <span aria-hidden="true" className="shrink-0 text-slate-400">
+        &rsaquo;
+      </span>
+    </Link>
+  )
+}

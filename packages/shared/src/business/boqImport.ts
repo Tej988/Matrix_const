@@ -98,8 +98,11 @@ function normalizeKey(value: string): string {
  * shapes a person types by hand need listing here.
  */
 const UNIT_ALIASES: Record<Unit, readonly string[]> = {
-  SQFT: ['sft', 'sqf', 'sqfeet', 'squarefeet', 'squarefoot', 'ft2'],
+  // 'sfqt' is a transposition that appears in the owner's own quotations. It is
+  // listed deliberately: the parser exists to accept what people actually type.
+  SQFT: ['sft', 'sqf', 'sfqt', 'sqfeet', 'squarefeet', 'squarefoot', 'ft2'],
   SQM: ['sqmt', 'sqmtr', 'sqmeter', 'sqmetre', 'squaremeter', 'squaremetre', 'm2'],
+  RFT: ['rft', 'runningfeet', 'runningfoot', 'runft', 'rfeet'],
   RMT: ['rm', 'rmtr', 'runningmeter', 'runningmetre', 'runningmtr', 'mtr', 'metre', 'meter', 'm'],
   NOS: ['no', 'nr', 'num', 'number', 'each', 'ea', 'pcs', 'pc', 'piece', 'set'],
   KG: ['kgs', 'kilo', 'kilogram'],

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createLabourRepository } from '@mc/shared/repositories/labour'
 import { createProjectRepository } from '@mc/shared/repositories/projects'
@@ -10,6 +11,14 @@ import { Amount } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 import { useTranslation } from '../../i18n/useTranslation'
 
+/**
+ * The roster. Everyone currently working, and a way to reach one person's page.
+ *
+ * The list stays deliberately thin: a name, what they do, what they cost a day.
+ * Everything else about somebody - their month, their wages, what they have
+ * been paid, whether they are still with us - is one question about one person
+ * and lives on `LabourDetailPage`.
+ */
 export function LabourPage() {
   const user = useCurrentUser()
   const { can } = useAuth()
@@ -19,6 +28,7 @@ export function LabourPage() {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [assigning, setAssigning] = useState<Labour | null>(null)
+  const [showFormer, setShowFormer] = useState(false)
 
   const labour = useQuery({ queryKey: ['labour'], queryFn: () => repo.list() })
   const projects = useQuery({
@@ -33,6 +43,16 @@ export function LabourPage() {
 
   const showMoney = can('financials:view')
 
+  /*
+   * Former workers are off the roster by default but never out of the system -
+   * their attendance and wage history is why the record still exists at all
+   * (ADR-007). The toggle is here so somebody who left can be found and, if it
+   * comes to it, brought back.
+   */
+  const active = labour.data.filter((l) => l.status !== 'INACTIVE')
+  const former = labour.data.filter((l) => l.status === 'INACTIVE')
+  const visible = showFormer ? [...active, ...former] : active
+
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -41,7 +61,7 @@ export function LabourPage() {
             {t('labourTitle')}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {t('countPeople', { n: labour.data.length })}
+            {t('countPeople', { n: active.length })}
           </p>
         </div>
         {can('labour:write') && (
@@ -75,32 +95,37 @@ export function LabourPage() {
         />
       )}
 
-      {labour.data.length === 0 ? (
+      {visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
           <p className="text-slate-600 dark:text-slate-300">{t('noLabourYet')}</p>
         </div>
       ) : (
         <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 dark:divide-slate-700 dark:border-slate-700">
-          {labour.data.map((l) => (
+          {visible.map((l) => (
             <li key={l.id} className="flex flex-wrap items-center gap-3 p-4">
-              <div className="min-w-0 flex-1">
+              {/* The whole name block is the link, and it is 44px tall: this is
+                  tapped with a thumb, on site, one-handed. */}
+              <Link
+                to={`/labour/${l.id}`}
+                className="flex min-h-11 min-w-0 flex-1 flex-col justify-center"
+              >
                 <p className="truncate font-medium text-slate-900 dark:text-slate-100">{l.name}</p>
                 <p className="truncate text-sm text-slate-500 dark:text-slate-400">
                   {l.role.replace('_', ' ').toLowerCase()}
                   {l.phone && ` · ${l.phone}`}
                   {l.status === 'INACTIVE' && ` · ${t('inactive')}`}
                 </p>
-              </div>
+              </Link>
               {showMoney && (
                 <span className="text-sm text-slate-600 dark:text-slate-300">
                   <Amount paise={l.defaultDailyWagePaise} /> {t('perDay')}
                 </span>
               )}
-              {can('labour:write') && (
+              {can('labour:write') && l.status !== 'INACTIVE' && (
                 <button
                   type="button"
                   onClick={() => setAssigning(l)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
+                  className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium dark:border-slate-600"
                 >
                   {t('assign')}
                 </button>
@@ -108,6 +133,16 @@ export function LabourPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {former.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowFormer((v) => !v)}
+          className="min-h-11 text-sm text-slate-500 underline underline-offset-2 dark:text-slate-400"
+        >
+          {showFormer ? 'Hide' : 'Show'} people no longer working with us ({former.length})
+        </button>
       )}
 
       <p className="text-xs text-slate-500 dark:text-slate-400">{t('privacyNote')}</p>

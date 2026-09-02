@@ -95,8 +95,26 @@ Settings. `netAmount` always runs the full formula; with zeros it reduces to the
 
 **Cost.** A few always-zero fields per bill. Negligible.
 
-**Revisit when.** You start raising GST invoices — then it is a Settings toggle plus a PDF
-template change, not a migration.
+**Confirmed by the owner, 2026-08-29 — and the default turns out to be correct.**
+
+The business holds a GSTIN (`08BWLPS1360M1ZY`) and its quotations state that tax applies,
+which looked at first like evidence the default was wrong. It is not. **The client raises the
+GST invoice, not this business.** Lakhan Sharma R supplies labour against a works contract;
+Tata Project Limited issues the tax document. The GSTIN exists on the letterhead so the
+client can reference it — it is an identifier printed on a page, not an instruction to compute
+tax.
+
+So: the GSTIN is part of the **business profile** and prints on every bill, quotation and
+report. `taxProfile.mode` stays `NONE`, every rate stays zero, and `netAmount` continues to
+reduce to the subtotal. No GST arithmetic exists anywhere in the system, which is the right
+amount of GST arithmetic to have when someone else is doing it.
+
+The fields stay in the schema regardless. They cost a few always-zero numbers per bill, and
+the day this business does raise its own tax invoices, it is a Settings toggle rather than a
+migration on live financial documents. That was the whole point of ADR-003.
+
+**Revisit when.** The business starts raising its own GST invoices — not merely when it has a
+GSTIN, which it already does.
 
 ---
 

@@ -135,12 +135,13 @@ export const SUMMARY_SCHEMA_VERSION = 1
 // ---------------------------------------------------------------------------
 
 /** Units a construction item can be measured in. */
-export const UNITS = ['SQFT', 'SQM', 'RMT', 'NOS', 'KG', 'MT', 'CUM', 'LS', 'DAY'] as const
+export const UNITS = ['SQFT', 'SQM', 'RFT', 'RMT', 'NOS', 'KG', 'MT', 'CUM', 'LS', 'DAY'] as const
 export type Unit = (typeof UNITS)[number]
 
 export const UNIT_LABELS: Record<Unit, string> = {
   SQFT: 'Sq.ft',
   SQM: 'Sq.m',
+  RFT: 'R.ft',
   RMT: 'R.mt',
   NOS: 'Nos',
   KG: 'Kg',
@@ -445,6 +446,16 @@ export interface LabourPayment {
   method: PaymentMethod
   phonepeTransactionId?: string
   bankTransactionId?: string
+  /**
+   * Who physically handed the money over - which is often not whoever typed it
+   * in. A supervisor pays cash on site at 6pm and the accountant records it at
+   * 9pm; `createdBy` answers "who entered this", these answer "who paid".
+   * Absent on payments written before the field existed, so a reader falls back
+   * to `createdBy` rather than assuming.
+   */
+  paidByUid?: string
+  paidByName?: string
+  /** The uploaded proof, if one made it. Absent is normal - ADR-009 fails soft. */
   documentId?: string
   status: LabourPaymentStatus
   idempotencyKey: string
@@ -578,4 +589,34 @@ export interface ProjectMember {
   uid: string
   displayName: string
   addedBy: string
+}
+
+// ---------------------------------------------------------------------------
+// Business profile
+// ---------------------------------------------------------------------------
+
+/**
+ * The business's own details, as they appear on bills and quotations.
+ *
+ * Stored in `settings/app` rather than hardcoded: the letterhead is the
+ * business's identity, it changes (a new phone number, a GST registration),
+ * and getting it wrong puts someone else's name on a real invoice.
+ */
+export interface BusinessProfile {
+  name: string
+  tagline?: string
+  addressLines: string[]
+  phone?: string
+  email?: string
+  gstin?: string
+  /** Printed above the signature rule. */
+  signatory?: string
+  /** Bill number prefix - assumption A7. */
+  billPrefix: string
+}
+
+export const DEFAULT_BUSINESS: BusinessProfile = {
+  name: '',
+  addressLines: [],
+  billPrefix: 'MC',
 }

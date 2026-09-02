@@ -25,6 +25,8 @@ export interface BusinessProfile {
   phone?: string
   email?: string
   gstin?: string
+  /** Printed above the signature rule, as on the owner's existing bills. */
+  signatory?: string
 }
 
 const esc = (s: string): string =>
@@ -45,23 +47,43 @@ export function renderBillHtml(
     bill.deductions.retentionAmountPaise > 0 ||
     bill.deductions.otherAmountPaise > 0
 
+  /*
+   * Two quantity columns, matching the owner's existing bills.
+   *
+   * Work is measured on site in square metres but contracted and billed per
+   * square foot, so a real bill shows BOTH and the client can check the
+   * conversion. Showing only one would make the bill harder to verify than the
+   * paper one it replaces.
+   */
+  const showMetric = items.some((i) => i.unit === 'SQFT' || i.unit === 'SQM')
+  const SQFT_PER_SQM = 10.7639
+
+  const metricOf = (i: BillItem): string => {
+    if (i.unit === 'SQM') return i.quantity.toLocaleString('en-IN')
+    if (i.unit === 'SQFT') return (i.quantity / SQFT_PER_SQM).toFixed(1)
+    return ''
+  }
+
   const rows = items
     .map(
       (i, n) => `
       <tr>
         <td class="num">${n + 1}</td>
         <td>${esc(i.name)}</td>
+        ${showMetric ? `<td class="num">${esc(metricOf(i))}</td>` : ''}
         <td class="num">${i.quantity.toLocaleString('en-IN')}</td>
         <td>${esc(UNIT_LABELS[i.unit])}</td>
-        <td class="num">${esc(Money.formatPaise(i.ratePaise))}</td>
-        <td class="num">${esc(Money.formatPaise(i.amountPaise))}</td>
+        <td class="num">${esc(Money.formatPlain(i.ratePaise))}</td>
+        <td class="num">${esc(Money.formatPlain(i.amountPaise))}</td>
       </tr>`,
     )
     .join('')
 
+  const columnCount = showMetric ? 7 : 6
+
   const totalRow = (label: string, value: string, strong = false) => `
     <tr class="${strong ? 'strong' : ''}">
-      <td colspan="5" class="label">${esc(label)}</td>
+      <td colspan="${columnCount - 1}" class="label">${esc(label)}</td>
       <td class="num">${esc(value)}</td>
     </tr>`
 
@@ -71,116 +93,104 @@ export function renderBillHtml(
 <meta charset="utf-8">
 <title>${esc(bill.billNumber)}</title>
 <style>
-  @page { size: A4; margin: 16mm; }
+  @page { size: A4; margin: 18mm; }
   * { box-sizing: border-box; }
-  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
-  header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; }
-  h1 { margin: 0 0 4px; font-size: 20px; }
-  .muted { color: #475569; }
-  .doc-title { text-align: right; }
-  .doc-title h2 { margin: 0; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; }
-  .parties { display: flex; justify-content: space-between; gap: 24px; margin: 16px 0; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { background: #f1f5f9; text-align: left; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 8px 6px; }
-  td { padding: 8px 6px; border-bottom: 1px solid #e2e8f0; }
+  body { font-family: Arial, system-ui, sans-serif; color: #000; font-size: 12px; margin: 0; }
+  h1 { margin: 0 0 4px; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { margin: 24px 0 8px; font-size: 17px; font-weight: 700; }
+  .meta { margin-bottom: 4px; }
+  .meta strong { font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { border: 1px solid #999; padding: 8px 10px; text-align: left; }
+  th { background: #f2f2f2; font-weight: 700; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .label { text-align: right; color: #475569; }
-  tr.strong td { font-weight: 700; border-top: 2px solid #0f172a; border-bottom: none; font-size: 14px; }
-  .words { margin-top: 8px; font-style: italic; color: #475569; }
-  footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: flex-end; }
-  .sign { border-top: 1px solid #94a3b8; padding-top: 6px; min-width: 180px; text-align: center; }
+  .label { text-align: right; font-weight: 700; }
+  tr.strong td { font-weight: 700; }
+  .words { margin-top: 10px; font-style: italic; color: #333; }
+  .sign { margin-top: 56px; font-weight: 700; }
+  .sign span { display: inline-block; min-width: 220px; border-bottom: 1px solid #000;
+               margin-left: 8px; text-align: center; }
+  .foot { margin-top: 28px; font-size: 10px; color: #666; }
   @media print { .noprint { display: none; } }
   .noprint { margin-bottom: 16px; }
   .noprint button { font-size: 14px; padding: 10px 18px; cursor: pointer; }
 </style>
 </head>
 <body>
-<div class="noprint">
-  <button onclick="window.print()">Print / Save as PDF</button>
-</div>
+<div class="noprint"><button onclick="window.print()">Print / Save as PDF</button></div>
 
-<header>
-  <div>
-    <h1>${esc(business.name)}</h1>
-    <div class="muted">${business.addressLines.map(esc).join('<br>')}</div>
-    <div class="muted">
-      ${business.phone ? esc(business.phone) : ''}
-      ${business.email ? ` · ${esc(business.email)}` : ''}
-    </div>
-    ${business.gstin ? `<div class="muted">GSTIN: ${esc(business.gstin)}</div>` : ''}
-  </div>
-  <div class="doc-title">
-    <h2>${hasTax ? 'Tax Invoice' : 'Bill'}</h2>
-    <div><strong>${esc(bill.billNumber)}</strong></div>
-    <div class="muted">${esc(Dates.formatDateKey(bill.billDate))}</div>
-  </div>
-</header>
+<h1>${esc(business.name)}</h1>
+${business.addressLines.length ? `<div class="meta">${business.addressLines.map(esc).join(', ')}</div>` : ''}
+${business.phone ? `<div class="meta">${esc(business.phone)}</div>` : ''}
+${business.gstin ? `<div class="meta"><strong>GSTIN:</strong> ${esc(business.gstin)}</div>` : ''}
 
-<div class="parties">
-  <div>
-    <div class="muted">Billed to</div>
-    <strong>${esc(bill.clientName)}</strong>
-  </div>
-  <div>
-    <div class="muted">Project</div>
-    <strong>${esc(bill.projectName)}</strong>
-  </div>
-  <div>
-    <div class="muted">Period</div>
-    <strong>${esc(Dates.formatDateKey(bill.periodFrom))} to ${esc(Dates.formatDateKey(bill.periodTo))}</strong>
-  </div>
-</div>
+<div class="meta"><strong>Date:</strong> ${esc(Dates.formatDateKey(bill.billDate))}</div>
+<div class="meta"><strong>Bill No:</strong> ${esc(bill.billNumber)}</div>
+<div class="meta"><strong>Client:</strong> ${esc(bill.clientName)}</div>
+<div class="meta"><strong>Project:</strong> ${esc(bill.projectName)}</div>
+<div class="meta"><strong>Period:</strong> ${esc(Dates.formatDateKey(bill.periodFrom))} to ${esc(Dates.formatDateKey(bill.periodTo))}</div>
+
+<h2>Bill Summary</h2>
 
 <table>
   <thead>
     <tr>
-      <th style="width:32px">#</th>
-      <th>Description of work</th>
+      <th style="width:34px">#</th>
+      <th>Item</th>
+      ${showMetric ? '<th class="num">M&sup2;</th>' : ''}
       <th class="num">Quantity</th>
       <th>Unit</th>
-      <th class="num">Rate</th>
-      <th class="num">Amount</th>
+      <th class="num">Rate (RS)</th>
+      <th class="num">Amount (RS)</th>
     </tr>
   </thead>
   <tbody>${rows}</tbody>
   <tfoot>
-    ${totalRow('Subtotal', Money.formatPaise(bill.subtotalPaise))}
-    ${bill.tax.cgstAmountPaise > 0 ? totalRow(`CGST @ ${bill.tax.cgstRate}%`, Money.formatPaise(bill.tax.cgstAmountPaise)) : ''}
-    ${bill.tax.sgstAmountPaise > 0 ? totalRow(`SGST @ ${bill.tax.sgstRate}%`, Money.formatPaise(bill.tax.sgstAmountPaise)) : ''}
-    ${bill.tax.igstAmountPaise > 0 ? totalRow(`IGST @ ${bill.tax.igstRate}%`, Money.formatPaise(bill.tax.igstAmountPaise)) : ''}
-    ${bill.deductions.tdsAmountPaise > 0 ? totalRow(`Less TDS @ ${bill.deductions.tdsRate}%`, `- ${Money.formatPaise(bill.deductions.tdsAmountPaise)}`) : ''}
-    ${bill.deductions.retentionAmountPaise > 0 ? totalRow(`Less retention @ ${bill.deductions.retentionRate}%`, `- ${Money.formatPaise(bill.deductions.retentionAmountPaise)}`) : ''}
-    ${bill.deductions.otherAmountPaise > 0 ? totalRow(`Less ${bill.deductions.otherLabel ?? 'other'}`, `- ${Money.formatPaise(bill.deductions.otherAmountPaise)}`) : ''}
-    ${totalRow('Net payable', Money.formatPaise(bill.netAmountPaise), true)}
+    ${hasTax || hasDeductions ? totalRow('Subtotal', Money.formatPlain(bill.subtotalPaise)) : ''}
+    ${bill.tax.cgstAmountPaise > 0 ? totalRow(`CGST @ ${bill.tax.cgstRate}%`, Money.formatPlain(bill.tax.cgstAmountPaise)) : ''}
+    ${bill.tax.sgstAmountPaise > 0 ? totalRow(`SGST @ ${bill.tax.sgstRate}%`, Money.formatPlain(bill.tax.sgstAmountPaise)) : ''}
+    ${bill.tax.igstAmountPaise > 0 ? totalRow(`IGST @ ${bill.tax.igstRate}%`, Money.formatPlain(bill.tax.igstAmountPaise)) : ''}
+    ${bill.deductions.tdsAmountPaise > 0 ? totalRow(`Less TDS @ ${bill.deductions.tdsRate}%`, `- ${Money.formatPlain(bill.deductions.tdsAmountPaise)}`) : ''}
+    ${bill.deductions.retentionAmountPaise > 0 ? totalRow(`Less retention @ ${bill.deductions.retentionRate}%`, `- ${Money.formatPlain(bill.deductions.retentionAmountPaise)}`) : ''}
+    ${bill.deductions.otherAmountPaise > 0 ? totalRow(`Less ${bill.deductions.otherLabel ?? 'other'}`, `- ${Money.formatPlain(bill.deductions.otherAmountPaise)}`) : ''}
+    ${totalRow('Total', Money.formatPlain(bill.netAmountPaise), true)}
   </tfoot>
 </table>
 
 <p class="words">Rupees ${esc(Money.formatPaiseInWords(bill.netAmountPaise))} only.</p>
 
-${hasDeductions ? '<p class="muted">Deductions shown are as per the agreed contract terms.</p>' : ''}
+<p class="sign">Authorized Signature:<span>${esc(business.signatory ?? '')}</span></p>
 
-<footer>
-  <div class="muted">This is a computer-generated document.</div>
-  <div class="sign">For ${esc(business.name)}</div>
-</footer>
+<p class="foot">Computer-generated from Matrix Construction.</p>
 </body>
 </html>`
 }
 
 /**
- * Opens the bill in a new window for printing.
+ * Opens a blank window SYNCHRONOUSLY, during the click.
  *
- * Returns false when the browser blocks the pop-up, so the caller can say so
- * rather than appearing to do nothing.
+ * Same reason as the report printer: `window.open()` after an `await` has lost
+ * its user-activation and every browser blocks it silently. Loading the bill's
+ * line items is async, so the window is claimed first and written afterwards.
  */
-export function openBillForPrint(
+export function openPrintWindow(): Window | null {
+  const win = window.open('', '_blank')
+  if (!win) return null
+  win.document.write(
+    '<!doctype html><title>Preparing…</title>' +
+      '<body style="font:14px system-ui;padding:24px;color:#475569">Preparing the bill…</body>',
+  )
+  return win
+}
+
+/** Fills a window already claimed by openPrintWindow(). */
+export function writeBill(
+  win: Window,
   bill: Bill,
   items: readonly BillItem[],
   business: BusinessProfile,
-): boolean {
-  const win = window.open('', '_blank')
-  if (!win) return false
+): void {
+  win.document.open()
   win.document.write(renderBillHtml(bill, items, business))
   win.document.close()
-  return true
 }

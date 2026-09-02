@@ -9,6 +9,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore'
 import type {
@@ -94,6 +95,64 @@ export function createLabourRepository(db: Firestore) {
       })
     },
 
+    /**
+     * "No longer working with us." The only kind of removal there is.
+     *
+     * Rules deny `delete` on labour outright and that is not an oversight:
+     * attendance rows and wage payments point at this record, and a payment
+     * whose payee has evaporated is not an auditable payment (ADR-007). So the
+     * record stays and the status flips.
+     *
+     * Ending the open assignments is the other half of the job, not a bonus.
+     * The roster the attendance screen marks against is built from ACTIVE
+     * assignments, never from the labour list, so a status flip on its own
+     * would leave someone who left the site still being ticked present every
+     * morning. Past assignments are left alone - they are what last month's
+     * register and wages hang off.
+     */
+    async deactivate(labourId: string, endDate: DateKey, actorUid: string): Promise<void> {
+      // One equality filter, then filtered in memory: a second `where` would
+      // want a composite index for what is a handful of rows per person.
+      const snap = await getDocs(
+        query(collection(db, 'labourAssignments'), where('labourId', '==', labourId)),
+      )
+
+      const batch = writeBatch(db)
+
+      batch.update(doc(db, 'labour', labourId), {
+        status: 'INACTIVE',
+        updatedAt: serverTimestamp(),
+        updatedBy: actorUid,
+      })
+
+      for (const assignment of snap.docs) {
+        if (assignment.data()['status'] !== 'ACTIVE') continue
+        batch.update(assignment.ref, {
+          status: 'ENDED',
+          endDate,
+          updatedAt: serverTimestamp(),
+          updatedBy: actorUid,
+        })
+      }
+
+      await batch.commit()
+    },
+
+    /**
+     * Back on the books.
+     *
+     * Assignments are deliberately NOT restored. Which site and at what rate
+     * are decisions to take again; replaying the old ones would put someone on
+     * a project that finished while they were away, at a rate nobody agreed.
+     */
+    async reactivate(labourId: string, actorUid: string): Promise<void> {
+      await updateDoc(doc(db, 'labour', labourId), {
+        status: 'ACTIVE',
+        updatedAt: serverTimestamp(),
+        updatedBy: actorUid,
+      })
+    },
+
     // ---- assignments (section 11) ----
 
     async assignmentsForProject(projectId: string): Promise<LabourAssignment[]> {
@@ -103,6 +162,24 @@ export function createLabourRepository(db: Firestore) {
           where('projectId', '==', projectId),
           where('status', '==', 'ACTIVE'),
         ),
+      )
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<LabourAssignment, 'id'>),
+      }))
+    },
+
+    /**
+     * Every project one person has been on, ended assignments included.
+     *
+     * A single equality filter, so Firestore's automatic single-field index
+     * serves it with no composite index to deploy. ENDED rows come back on
+     * purpose: the person page is a history, and the site somebody left last
+     * month is where last month's register and wages live.
+     */
+    async assignmentsForLabour(labourId: string): Promise<LabourAssignment[]> {
+      const snap = await getDocs(
+        query(collection(db, 'labourAssignments'), where('labourId', '==', labourId)),
       )
       return snap.docs.map((d) => ({
         id: d.id,

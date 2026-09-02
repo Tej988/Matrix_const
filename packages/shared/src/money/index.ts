@@ -208,3 +208,28 @@ export function formatPaiseInWords(p: Paise): string {
 
   return (negative ? 'minus ' : '') + words
 }
+
+/**
+ * Short form for chart axes and tight columns: 2.5L, 18.5L, 1.2Cr.
+ *
+ * Indian scale, not Western - a reader who thinks in lakh and crore should not
+ * have to convert from "1.85M" in their head. Full precision belongs in
+ * formatPaise; this is for places where an axis label must not collide with
+ * its neighbour.
+ */
+export function formatCompactPaise(p: Paise): string {
+  const negative = p < 0
+  const rupees = Math.abs(p) / 100
+  const sign = negative ? '-' : ''
+
+  if (rupees >= 10_000_000) return `${sign}₹${trim(rupees / 10_000_000)}Cr`
+  if (rupees >= 100_000) return `${sign}₹${trim(rupees / 100_000)}L`
+  if (rupees >= 1_000) return `${sign}₹${trim(rupees / 1_000)}K`
+  return `${sign}₹${Math.round(rupees)}`
+}
+
+/** One decimal, but never a trailing ".0" - "2L" reads better than "2.0L". */
+function trim(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
+}

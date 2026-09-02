@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  formatCompactPaise,
   paise,
   fromRupees,
   toRupees,
@@ -155,5 +156,39 @@ describe('formatting', () => {
 
   it('renders a negative amount', () => {
     expect(formatPaiseInWords(fromRupees(-8_000))).toBe('minus eight thousand rupees')
+  })
+})
+
+describe('formatCompactPaise - Indian scale for axes', () => {
+  it.each([
+    [fromRupees(0), '₹0'],
+    [fromRupees(750), '₹750'],
+    [fromRupees(2_500), '₹2.5K'],
+    [fromRupees(85_000), '₹85K'],
+    [fromRupees(2_50_000), '₹2.5L'],
+    [fromRupees(18_50_000), '₹18.5L'],
+    [fromRupees(1_25_00_000), '₹1.3Cr'],
+  ])('formats %d as %s', (input, expected) => {
+    expect(formatCompactPaise(input)).toBe(expected)
+  })
+
+  it('uses lakh and crore, never millions', () => {
+    // A reader who thinks in lakh should not have to convert from 1.85M.
+    expect(formatCompactPaise(fromRupees(18_50_000))).not.toContain('M')
+  })
+
+  it('drops a trailing .0', () => {
+    expect(formatCompactPaise(fromRupees(2_00_000))).toBe('₹2L')
+  })
+
+  it('handles negatives', () => {
+    expect(formatCompactPaise(fromRupees(-2_50_000))).toBe('-₹2.5L')
+  })
+
+  it('crosses each boundary at exactly the right point', () => {
+    expect(formatCompactPaise(fromRupees(999))).toBe('₹999')
+    expect(formatCompactPaise(fromRupees(1_000))).toBe('₹1K')
+    expect(formatCompactPaise(fromRupees(99_999))).toBe('₹100K')
+    expect(formatCompactPaise(fromRupees(1_00_000))).toBe('₹1L')
   })
 })

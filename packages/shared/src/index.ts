@@ -121,4 +121,42 @@ export {
   type RejectedBoqRow,
 } from './business/boqImport'
 
+/*
+ * Storage is safe to re-export here even though repositories are not: the
+ * adapter speaks HTTP, so it drags in no Firebase and the pure-business
+ * consumers of this entry point stay as light as they were.
+ */
+export {
+  DOCUMENT_KINDS,
+  STORAGE_FAILURES,
+  STORAGE_PROVIDERS,
+  StorageError,
+  isStorageError,
+  type AccessTokenSupplier,
+  type DocumentKind,
+  type StorageAdapter,
+  type StorageFailure,
+  type StorageProvider,
+  type StoredFileRef,
+  type UploadInput,
+} from './storage/index'
+
+export {
+  createGoogleDriveAdapter,
+  describeStorageFailure,
+  driveViewUrl,
+  MAX_MULTIPART_BYTES,
+  type GoogleDriveAdapterConfig,
+} from './storage/driveAdapter'
+
 export type { Paise, DateKey, Period } from '@mc/types'
+
+/*
+ * The business's own letterhead. Re-exported here beside the money and date
+ * helpers because it is what every printed document is stamped with, and a
+ * printer that already imports Money should not need a second package to learn
+ * whose name goes at the top. The repository that loads it stays out of this
+ * entry point - it speaks Firestore.
+ */
+export type { BusinessProfile } from '@mc/types'
+export { DEFAULT_BUSINESS } from '@mc/types'

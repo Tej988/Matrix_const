@@ -471,3 +471,42 @@ describe('a realistic forty-line paste', () => {
     )
   })
 })
+
+describe("the owner's own unit spellings", () => {
+  it("accepts 'sfqt', the transposition that appears in their real quotations", () => {
+    const r = parseBoqPaste('Flooring Polish	sfqt	1000	65')
+    expect(r.errorCount).toBe(0)
+    expect(r.valid[0]?.unit).toBe('SQFT')
+  })
+
+  it('accepts RFT for running feet', () => {
+    const r = parseBoqPaste('Riser Polish	RFT	250	65')
+    expect(r.errorCount).toBe(0)
+    expect(r.valid[0]?.unit).toBe('RFT')
+  })
+
+  it('keeps running feet distinct from running metres', () => {
+    // Confusing the two would misprice every riser by a factor of 3.28.
+    const feet = parseBoqPaste('Riser	RFT	100	65')
+    const metres = parseBoqPaste('Riser	RMT	100	65')
+    expect(feet.valid[0]?.unit).toBe('RFT')
+    expect(metres.valid[0]?.unit).toBe('RMT')
+  })
+
+  it('parses their whole quotation in one paste', () => {
+    const r = parseBoqPaste(
+      [
+        'Description	Unit	Rate',
+        'Flooring Polish	sfqt	65',
+        'Step Polish	sfqt	65',
+        'Riser Polish	RFT	65',
+        'Wall cladding polish	sqft	125',
+        'Piller polish	sqft	125',
+      ].join(String.fromCharCode(10)),
+    )
+    // A quotation quotes rates without quantities, so every row is short a
+    // column - what matters is that the units and rates all resolve.
+    expect(r.rows).toHaveLength(5)
+    expect(r.hasHeader).toBe(true)
+  })
+})
