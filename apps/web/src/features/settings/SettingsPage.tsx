@@ -81,11 +81,9 @@ export function SettingsPage() {
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Business details
+              {t('businessDetails')}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              The letterhead printed on every bill and quotation.
-            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t('businessDetailsHint')}</p>
           </div>
           <BusinessProfileForm />
         </section>
@@ -95,28 +93,16 @@ export function SettingsPage() {
           touched a few times a year, and every extra tab makes the daily ones
           harder to hit on a phone (§28). They live here instead of vanishing. */}
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Set up</h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('setUp')}</h2>
         <div className="grid gap-3 sm:grid-cols-2">
           {can('client:read') && (
-            <SetupLink
-              to="/clients"
-              label={t('clientsTitle')}
-              hint="Who you bill. Names appear on every invoice."
-            />
+            <SetupLink to="/clients" label={t('clientsTitle')} hint={t('setUpClientsHint')} />
           )}
           {can('user:manage') && (
-            <SetupLink
-              to="/users"
-              label={t('navUsers')}
-              hint="Who can sign in, and what each of them may see."
-            />
+            <SetupLink to="/users" label={t('navUsers')} hint={t('setUpUsersHint')} />
           )}
           {can('wage:read') && (
-            <SetupLink
-              to="/wages"
-              label={t('wagesTitle')}
-              hint="Payroll across every project in one table."
-            />
+            <SetupLink to="/wages" label={t('wagesTitle')} hint={t('setUpWagesHint')} />
           )}
         </div>
       </section>
@@ -165,7 +151,7 @@ export function SettingsPage() {
           <QueryError
             error={projects.error}
             onRetry={() => void projects.refetch()}
-            what="projects"
+            what={t('projectsTitle')}
           />
         )}
 
@@ -269,8 +255,7 @@ export function SettingsPage() {
         <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           <strong>{t('notAvailable')}</strong> {AI_STATUS.reason}
           <br />
-          The tool layer is built and tested — when billing is enabled, connecting a provider is an
-          adapter, not a rewrite.
+          {t('aiToolLayerNote')}
         </p>
       </section>
     </div>

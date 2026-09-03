@@ -61,7 +61,13 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
       if (e instanceof ApprovalRejected) {
         setApprovalError(
           `${e.message} ${e.failures
-            .map((f) => `${f.boqItemName}: asked for ${f.requestedQty}, only ${f.allowedQty} left`)
+            .map((f) =>
+              t('approvalShortfall', {
+                item: f.boqItemName,
+                asked: f.requestedQty,
+                left: f.allowedQty,
+              }),
+            )
             .join('; ')}`,
         )
       } else {
@@ -82,7 +88,7 @@ export function MeasurementsSection({ projectId }: { projectId: string }) {
       <QueryError
         error={measurements.error}
         onRetry={() => void measurements.refetch()}
-        what="measurements"
+        what={t('tabMeasurements')}
       />
     )
   }

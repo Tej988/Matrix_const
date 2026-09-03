@@ -31,6 +31,7 @@ export {
 
 export {
   contractAmount,
+  hasContractQty,
   remainingQty,
   unbilledQty,
   completionPercent,
@@ -40,6 +41,7 @@ export {
   suggestCode,
   roundQty,
   type ContractCoverage,
+  type OptionalQty,
   type QuantityCheck,
   type QuantityInput,
   type QuantityRejection,

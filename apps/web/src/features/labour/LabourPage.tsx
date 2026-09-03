@@ -38,7 +38,13 @@ export function LabourPage() {
 
   if (labour.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (labour.isError) {
-    return <QueryError error={labour.error} onRetry={() => void labour.refetch()} what="labour" />
+    return (
+      <QueryError
+        error={labour.error}
+        onRetry={() => void labour.refetch()}
+        what={t('labourTitle')}
+      />
+    )
   }
 
   const showMoney = can('financials:view')
@@ -141,7 +147,7 @@ export function LabourPage() {
           onClick={() => setShowFormer((v) => !v)}
           className="min-h-11 text-sm text-slate-500 underline underline-offset-2 dark:text-slate-400"
         >
-          {showFormer ? 'Hide' : 'Show'} people no longer working with us ({former.length})
+          {showFormer ? t('hideFormerWorkers') : t('showFormerWorkers')} ({former.length})
         </button>
       )}
 

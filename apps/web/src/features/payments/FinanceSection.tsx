@@ -108,7 +108,11 @@ export function FinanceSection({ project }: { project: Project }) {
     return <p className="text-slate-500">{t('loading')}</p>
   if (payments.isError) {
     return (
-      <QueryError error={payments.error} onRetry={() => void payments.refetch()} what="payments" />
+      <QueryError
+        error={payments.error}
+        onRetry={() => void payments.refetch()}
+        what={t('payments')}
+      />
     )
   }
 
@@ -323,7 +327,7 @@ function ReceiptForm({
           <input
             value={reference}
             onChange={(e) => setReference(e.target.value)}
-            placeholder="UTR number"
+            placeholder={t('utrNumber')}
             className={inputClass}
           />
         </label>

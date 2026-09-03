@@ -188,9 +188,24 @@ export interface BoqItem {
   name: string
   description?: string
   unit: Unit
-  contractQty: number
+  /**
+   * OPTIONAL, and usually absent - the same realisation as R-01, one level
+   * down. The owner: "we dont need this contract [quantity] as we dont have
+   * fix number, that is depend on the work". Their own quotation is
+   * `S.NO | Description | Unit | Rate` with no quantity column at all: the
+   * business quotes a RATE, measures what is actually done, and bills that.
+   *
+   * A fixed-quantity job still exists and still carries this field, and while
+   * it does the section 4 overbilling ceiling applies to it in full. Where it
+   * is absent there is no ceiling to apply - see RISKS.md R-13.
+   *
+   * Absent, never 0. Zero would read as "nothing left to measure" and would
+   * make the section 4 check reject every measurement ever entered.
+   */
+  contractQty?: number
   ratePaise: Paise
-  contractAmountPaise: Paise
+  /** contractQty x rate. Absent exactly when contractQty is. */
+  contractAmountPaise?: Paise
   /** Approved measured quantity to date. */
   completedQty: number
   /** Quantity already pulled into a bill. Never exceeds completedQty. */

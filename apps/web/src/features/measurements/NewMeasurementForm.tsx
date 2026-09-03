@@ -133,7 +133,14 @@ export function NewMeasurementForm({
                 <option value="">{t('chooseWorkItem')}</option>
                 {items.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.name} ({remainingQty(i).toLocaleString('en-IN')} {UNIT_LABELS[i.unit]} left)
+                    {/*
+                      "N left" only where a contract quantity gives a ceiling.
+                      On a rate-only item there is nothing left OF, and printing
+                      a number here would invent a limit that does not exist.
+                    */}
+                    {i.name}
+                    {remainingQty(i) !== null &&
+                      ` (${remainingQty(i)?.toLocaleString('en-IN')} ${UNIT_LABELS[i.unit]} ${t('left')})`}
                   </option>
                 ))}
               </select>
@@ -153,7 +160,7 @@ export function NewMeasurementForm({
                   setRows((rs) => rs.map((r, i) => (i === idx ? { ...r, qty: e.target.value } : r)))
                 }
                 inputMode="decimal"
-                placeholder={left !== null ? `max ${left}` : 'Qty'}
+                placeholder={left !== null ? t('maxQty', { n: left }) : t('qtyShort')}
                 className={inputClass}
               />
               <button
@@ -189,8 +196,12 @@ export function NewMeasurementForm({
             <p key={i}>
               <strong>{r.boqItemName}</strong>{' '}
               {r.reason === 'EXCEEDS_CONTRACT'
-                ? `at ${r.location}: only ${r.allowedQty.toLocaleString('en-IN')} left against the contract, ${r.excessQty.toLocaleString('en-IN')} too many.`
-                : 'has an invalid quantity.'}
+                ? t('exceedsContractLine', {
+                    location: r.location,
+                    allowed: r.allowedQty,
+                    excess: r.excessQty,
+                  })
+                : t('invalidQuantity')}
             </p>
           ))}
         </div>

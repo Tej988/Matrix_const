@@ -268,14 +268,28 @@ describe('blank lines and stray separators', () => {
 
 describe('bad rows are reported, not swallowed', () => {
   it('reports a row that is missing a column', () => {
-    const result = parseBoqPaste('Flooring\tSQFT\t10000')
+    // Two cells is the rate-only shape with the rate gone, which is the only
+    // reading left once a three-column paste is a legitimate document.
+    const result = parseBoqPaste('Flooring\tSQFT')
 
     expect(result.valid).toHaveLength(0)
     expect(result.rows[0]).toMatchObject({
       ok: false,
       rowNumber: 1,
-      raw: 'Flooring\tSQFT\t10000',
+      raw: 'Flooring\tSQFT',
       errors: [{ reason: 'MISSING_FIELD', field: 'rate' }],
+    })
+  })
+
+  it('reports the blank quantity cell only when the sheet HAS that column', () => {
+    // Four columns with the third empty: the sheet says there is a quantity and
+    // this row does not give one. Contrast with the three-column case below,
+    // where the column does not exist and nothing is missing.
+    const result = parseBoqPaste(['Flooring\tSQFT\t10000\t120', 'Plaster\tSQFT\t\t45'].join('\n'))
+
+    expect(result.rows[1]).toMatchObject({
+      ok: false,
+      errors: [{ reason: 'MISSING_FIELD', field: 'quantity' }],
     })
   })
 
@@ -504,9 +518,133 @@ describe("the owner's own unit spellings", () => {
         'Piller polish	sqft	125',
       ].join(String.fromCharCode(10)),
     )
-    // A quotation quotes rates without quantities, so every row is short a
-    // column - what matters is that the units and rates all resolve.
-    expect(r.rows).toHaveLength(5)
+    // Their quotation quotes rates and no quantities. That is the document, not
+    // a document with a column missing, so every row imports cleanly.
     expect(r.hasHeader).toBe(true)
+    expect(r.hasQuantityColumn).toBe(false)
+    expect(r.errorCount).toBe(0)
+    expect(r.rows).toHaveLength(5)
+    expect(r.valid).toHaveLength(5)
+    expect(r.valid.map((row) => row.ratePaise)).toEqual([65, 65, 65, 125, 125].map(fromRupees))
+    expect(r.valid.map((row) => row.unit)).toEqual(['SQFT', 'SQFT', 'RFT', 'SQFT', 'SQFT'])
+  })
+})
+
+/**
+ * The three-column shape, which is the one this business actually pastes.
+ *
+ * "we dont need this contract [quantity] as we dont have fix number, that is
+ * depend on the work" - so the sheet they copy from has no quantity column at
+ * all, and a parser that insisted on one would reject their real quotation.
+ */
+describe('a rate-only paste - Description | Unit | Rate', () => {
+  const quotation = ['Flooring Polish\tsfqt\t65', 'Riser Polish\tRFT\t65'].join('\n')
+
+  it('parses natively rather than reporting a missing column', () => {
+    const r = parseBoqPaste(quotation)
+
+    expect(r.errorCount).toBe(0)
+    expect(r.hasQuantityColumn).toBe(false)
+    expect(r.valid).toHaveLength(2)
+    expect(r.valid[0]).toMatchObject({ name: 'Flooring Polish', unit: 'SQFT', ratePaise: 6500 })
+  })
+
+  it('leaves the quantity and the amount keys OFF the row entirely', () => {
+    // Absent, not zero and not null: Firestore rejects an explicit undefined,
+    // and a stored 0 would become a section 4 ceiling of nothing.
+    const row = okRows(quotation)[0]
+
+    expect(row).not.toHaveProperty('contractQty')
+    expect(row).not.toHaveProperty('contractAmountPaise')
+  })
+
+  it('totals nothing, because there is nothing to total', () => {
+    // Not a partial total dressed up as complete - the caller is told there
+    // were no quantities and hides the figure.
+    const r = parseBoqPaste(quotation)
+
+    expect(r.totalPaise).toBe(0)
+    expect(r.hasQuantityColumn).toBe(false)
+  })
+
+  it('reads a header that names the three columns', () => {
+    const r = parseBoqPaste(['Description,Unit,Rate', 'Flooring Polish,sqft,65'].join('\n'))
+
+    expect(r.hasHeader).toBe(true)
+    expect(r.hasQuantityColumn).toBe(false)
+    expect(r.valid[0]?.name).toBe('Flooring Polish')
+  })
+
+  it('follows a three-column header whatever order it is in', () => {
+    const r = parseBoqPaste(['Rate,UOM,Particulars', '65,R.ft,Riser Polish'].join('\n'))
+
+    expect(r.valid[0]).toMatchObject({ name: 'Riser Polish', unit: 'RFT', ratePaise: 6500 })
+    expect(r.valid[0]).not.toHaveProperty('contractQty')
+  })
+
+  it('still flags duplicates and unknown units', () => {
+    const r = parseBoqPaste(
+      ['Flooring Polish,sqft,65', 'flooring polish,sqft,65', 'Skirting,furlongs,90'].join('\n'),
+      { existingNames: ['Skirting'] },
+    )
+
+    expect(r.valid).toHaveLength(2)
+    expect(r.valid[1]?.warnings[0]?.reason).toBe('DUPLICATE_IN_PASTE')
+    expect(r.rows[2]).toMatchObject({ ok: false, errors: [{ reason: 'UNKNOWN_UNIT' }] })
+  })
+
+  it('still rejects a negative rate', () => {
+    expect(parseBoqPaste('Flooring Polish,sqft,-65').rows[0]).toMatchObject({
+      ok: false,
+      errors: [{ reason: 'BAD_RATE' }],
+    })
+  })
+})
+
+describe('deciding which shape a paste is', () => {
+  it('reads four columns as a bill of quantities', () => {
+    const r = parseBoqPaste('Flooring,SQFT,10000,120')
+
+    expect(r.hasQuantityColumn).toBe(true)
+    expect(r.valid[0]).toMatchObject({ contractQty: 10000, ratePaise: fromRupees(120) })
+  })
+
+  it('reads three columns as a quotation', () => {
+    // The same middle number, read as a rate rather than a quantity. There is
+    // no way to tell these apart from the cells alone, so the shape of the
+    // sheet decides - and this business's sheet has three columns.
+    const r = parseBoqPaste('Flooring,SQFT,10000')
+
+    expect(r.hasQuantityColumn).toBe(false)
+    expect(r.valid[0]?.ratePaise).toBe(fromRupees(10000))
+  })
+
+  it('lets the WIDEST row decide, not the first', () => {
+    // A four-column sheet whose first row lost its rate must stay a
+    // four-column sheet and report that row, rather than silently re-reading
+    // every quantity below it as a rate.
+    const r = parseBoqPaste(['Flooring,SQFT,10000', 'Plaster,SQFT,5000,45'].join('\n'))
+
+    expect(r.hasQuantityColumn).toBe(true)
+    expect(r.rows[0]).toMatchObject({ ok: false, errors: [{ reason: 'MISSING_FIELD' }] })
+    expect(r.valid[0]).toMatchObject({ name: 'Plaster', contractQty: 5000 })
+  })
+
+  it('ignores a stray trailing separator when measuring the width', () => {
+    // A spreadsheet leaves one behind often enough that counting raw cells
+    // would turn a quotation into a BOQ with every rate reported missing.
+    const r = parseBoqPaste(['Flooring Polish\tsqft\t65\t', 'Riser Polish\tRFT\t65'].join('\n'))
+
+    expect(r.hasQuantityColumn).toBe(false)
+    expect(r.errorCount).toBe(0)
+    expect(r.valid).toHaveLength(2)
+  })
+
+  it('honours a header that names a quantity column even on narrow rows', () => {
+    // The header is evidence about the sheet; the width is only a fallback.
+    const r = parseBoqPaste(['Item,Qty,Rate,Unit', 'Flooring,10000,120,SQFT'].join('\n'))
+
+    expect(r.hasQuantityColumn).toBe(true)
+    expect(r.valid[0]?.contractQty).toBe(10000)
   })
 })

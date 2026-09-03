@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Role } from '@mc/types'
+import { useTranslation, type Translate } from '../../i18n/useTranslation'
 
 /**
  * First-run tour.
@@ -21,83 +22,77 @@ interface Step {
   detail?: string
 }
 
-function stepsFor(role: Role, name: string): Step[] {
-  const first = name.split(' ')[0] || 'there'
+function stepsFor(t: Translate, role: Role, name: string): Step[] {
+  const first = name.split(' ')[0] || t('tourGreetingName')
+  const rateCardTitle = `📋 ${t('tourRateCardTitle')}`
 
   if (role === 'SUPERVISOR') {
     return [
       {
-        title: `Namaste, ${first}`,
-        body: 'This app replaces the attendance register and the measurement diary. Two screens cover almost everything you do.',
+        title: `${t('greeting')}, ${first}`,
+        body: t('tourSupIntroBody'),
       },
       {
-        title: '📅 Attendance',
-        body: 'Pick the project and the date, then tap P, ½, A or L against each name.',
-        detail:
-          'It works with no internet. Marks are saved on your phone and sync by themselves when signal comes back — nothing is ever lost.',
+        title: `📅 ${t('attendanceTitle')}`,
+        body: t('tourSupAttendanceBody'),
+        detail: t('tourSupAttendanceDetail'),
       },
       {
-        title: '🏗️ Measurements',
-        body: 'Record work done against the rate card — item, location, quantity. The app shows the amount as you type.',
-        detail:
-          'If a quantity would go past the agreed contract, it tells you immediately and says how much is left. You submit; the owner approves.',
+        title: `🏗️ ${t('tabMeasurements')}`,
+        body: t('tourSupMeasureBody'),
+        detail: t('tourSupMeasureDetail'),
       },
       {
-        title: 'What you will not see',
-        body: 'Bills, payments and wages are hidden for your role. That is deliberate, not a fault.',
+        title: t('tourSupHiddenTitle'),
+        body: t('tourSupHiddenBody'),
       },
     ]
   }
 
   const owner: Step[] = [
     {
-      title: `Namaste, ${first}`,
-      body: 'This is your construction business in one place — projects, work done, bills, money in, labour and wages.',
+      title: `${t('greeting')}, ${first}`,
+      body: t('tourOwnerIntroBody'),
     },
     {
-      title: 'How work becomes money',
-      body: 'Client → Project → Rate card → Measurement → Approval → Bill → Payment.',
-      detail:
-        'Each step feeds the next. Nothing can be billed until it has been measured and approved, and every figure on the dashboard is computed from those records — never typed in by hand.',
+      title: t('tourFlowTitle'),
+      body: t('tourFlowBody'),
+      detail: t('tourFlowDetail'),
     },
     {
-      title: '🏗️ Projects',
-      body: 'Open a project to see everything about it: contract value, what is billed, what is received, and what is still owed.',
-      detail:
-        '"Outstanding" is shown as three separate numbers, because it means three different things — money invoiced and unpaid, work still to bill, and the total left to collect.',
+      title: `🏗️ ${t('projectsTitle')}`,
+      body: t('tourProjectsBody'),
+      detail: t('tourProjectsDetail'),
     },
     {
-      title: '📋 Rate card and measurements',
-      body: 'Set your agreed items and rates once. Site staff record work against them each month.',
-      detail:
-        'The app will not let anyone measure past the contract quantity without an explicit change order.',
+      title: rateCardTitle,
+      body: t('tourRateCardBody'),
+      detail: t('tourRateCardDetail'),
     },
     {
-      title: '💰 Bills and payments',
-      body: 'Generate a bill from approved measurements, print it or save it as PDF, then record payments as they arrive.',
-      detail:
-        'Bills are never deleted. A mistake is cancelled and reissued, so the trail always stays intact.',
+      title: `💰 ${t('tourBillsTitle')}`,
+      body: t('tourBillsBody'),
+      detail: t('tourBillsDetail'),
     },
     {
-      title: '👷 Labour and wages',
-      body: 'Wages are calculated from attendance — days present, half days, and the rate on the day.',
-      detail:
-        'Earned, paid and payable are tracked separately, so an advance shows up as an advance.',
+      title: `👷 ${t('tourLabourTitle')}`,
+      body: t('tourLabourBody'),
+      detail: t('tourLabourDetail'),
     },
     {
-      title: '📄 Reports',
-      body: 'Every report downloads as PDF or a spreadsheet.',
-      detail:
-        'These are also your backup. There is no automatic off-site backup on the free plan, so download them from time to time.',
+      title: `📄 ${t('reportsTitle')}`,
+      body: t('tourReportsBody'),
+      detail: t('tourReportsDetail'),
     },
   ]
 
   if (role === 'OWNER' || role === 'ADMIN') return owner
   // Accountant and viewer: same story, without the setup steps.
-  return owner.filter((s) => !s.title.includes('Rate card'))
+  return owner.filter((s) => s.title !== rateCardTitle)
 }
 
 export function Tour({ role, name }: { role: Role; name: string }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState(0)
 
@@ -128,7 +123,7 @@ export function Tour({ role, name }: { role: Role; name: string }) {
 
   if (!open) return null
 
-  const steps = stepsFor(role, name)
+  const steps = stepsFor(t, role, name)
   const current = steps[step]
   if (!current) return null
 
@@ -169,7 +164,7 @@ export function Tour({ role, name }: { role: Role; name: string }) {
             onClick={close}
             className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 dark:text-slate-400"
           >
-            Skip
+            {t('skip')}
           </button>
 
           <div className="flex gap-2">
@@ -179,7 +174,7 @@ export function Tour({ role, name }: { role: Role; name: string }) {
                 onClick={() => setStep((s) => s - 1)}
                 className="rounded-xl border border-slate-300 px-5 py-3 font-medium dark:border-slate-600"
               >
-                Back
+                {t('back')}
               </button>
             )}
             <button
@@ -187,13 +182,13 @@ export function Tour({ role, name }: { role: Role; name: string }) {
               onClick={() => (last ? close() : setStep((s) => s + 1))}
               className="rounded-xl bg-slate-900 px-6 py-3 font-medium text-white dark:bg-slate-100 dark:text-slate-900"
             >
-              {last ? 'Start using it' : 'Next'}
+              {last ? t('tourStart') : t('next')}
             </button>
           </div>
         </div>
 
         <p className="mt-3 text-center text-xs text-slate-400">
-          {step + 1} of {steps.length} · you can reopen this from Settings
+          {t('tourProgress', { step: step + 1, total: steps.length })}
         </p>
       </div>
     </div>

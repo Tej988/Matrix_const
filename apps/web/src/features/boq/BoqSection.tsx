@@ -35,12 +35,7 @@ import {
   type QuotationDetails,
   type QuotationLine,
 } from './QuotationPdf'
-import {
-  BUSINESS_NOT_SET_WARNING,
-  hasBusinessName,
-  letterheadFor,
-  useBusinessProfile,
-} from '../settings/BusinessProfileForm'
+import { hasBusinessName, letterheadFor, useBusinessProfile } from '../settings/BusinessProfileForm'
 
 /**
  * The rate card. Section 5 - every rate is configurable per project, and none
@@ -67,14 +62,21 @@ export function BoqSection({
     queryFn: () => repo.listForProject(projectId),
   })
 
-  if (items.isPending) return <p className="text-slate-500">Loading rate card…</p>
+  if (items.isPending) return <p className="text-slate-500">{t('loading')}</p>
   if (items.isError) {
     return (
-      <QueryError error={items.error} onRetry={() => void items.refetch()} what="the rate card" />
+      <QueryError error={items.error} onRetry={() => void items.refetch()} what={t('rateCard')} />
     )
   }
 
   const totals = boqTotals(items.data)
+  /*
+   * Whether ANY item carries an agreed quantity. On this business's normal
+   * job none do - work is quoted by rate and billed on what is measured - so
+   * the Contract / Amount / Left columns would be three columns of em dashes.
+   * They appear only when at least one item actually has a quantity.
+   */
+  const anyHasQuantity = items.data.some((i) => i.contractQty !== undefined)
   const coverage = contractCoverage(items.data, contractValuePaise)
   const showMoney = can('financials:view')
 
@@ -83,11 +85,11 @@ export function BoqSection({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            Rate card (BOQ)
+            {t('rateCard')}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {totals.itemCount} {totals.itemCount === 1 ? 'item' : 'items'}
-            {totals.itemCount > 0 && ` · ${totals.completionPercent}% complete by value`}
+            {t('countItems', { n: totals.itemCount })}
+            {totals.itemCount > 0 && ` · ${totals.completionPercent}% ${t('completeByValue')}`}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -100,7 +102,7 @@ export function BoqSection({
               onClick={() => setMode((m) => (m === 'quote' ? 'none' : 'quote'))}
               className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
             >
-              {mode === 'quote' ? t('cancel') : 'Quotation'}
+              {mode === 'quote' ? t('cancel') : t('quotation')}
             </button>
           )}
           {can('boq:write') && (
@@ -149,22 +151,20 @@ export function BoqSection({
 
       {items.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center dark:border-slate-600">
-          <p className="text-slate-600 dark:text-slate-300">No work items yet.</p>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Add the agreed items and rates — measurements and bills are built from these.
-          </p>
+          <p className="text-slate-600 dark:text-slate-300">{t('noWorkItems')}</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('rateCardHint')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs tracking-wide text-slate-500 uppercase dark:bg-slate-800 dark:text-slate-400">
               <tr>
-                <th className="p-3">Item</th>
-                <th className="p-3 text-right">Contract</th>
-                {showMoney && <th className="p-3 text-right">Rate</th>}
-                {showMoney && <th className="p-3 text-right">Amount</th>}
-                <th className="p-3 text-right">Done</th>
-                <th className="p-3 text-right">Left</th>
+                <th className="p-3">{t('workItem')}</th>
+                {anyHasQuantity && <th className="p-3 text-right">{t('contractShort')}</th>}
+                {showMoney && <th className="p-3 text-right">{t('rate')}</th>}
+                {showMoney && anyHasQuantity && <th className="p-3 text-right">{t('amount')}</th>}
+                <th className="p-3 text-right">{t('done')}</th>
+                {anyHasQuantity && <th className="p-3 text-right">{t('left')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -174,30 +174,55 @@ export function BoqSection({
                     <p className="font-medium text-slate-900 dark:text-slate-100">{i.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {i.code}
-                      {i.status === 'CLOSED' && ' · closed'}
+                      {i.status === 'CLOSED' && ` · ${t('closed')}`}
                     </p>
                   </td>
-                  <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                    {i.contractQty.toLocaleString('en-IN')}
-                    <span className="ml-1 text-xs text-slate-400">{UNIT_LABELS[i.unit]}</span>
-                  </td>
-                  {showMoney && (
-                    <td className="p-3 text-right">
-                      <Amount paise={i.ratePaise} />
+                  {/*
+                    An em dash, never a zero. A rate-only item has no agreed
+                    quantity, and "0" in this column would read as a contract
+                    for no work at all.
+                  */}
+                  {anyHasQuantity && (
+                    <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                      {i.contractQty === undefined ? (
+                        <span className="text-slate-400">&mdash;</span>
+                      ) : (
+                        <>
+                          {i.contractQty.toLocaleString('en-IN')}
+                          <span className="ml-1 text-xs text-slate-400">{UNIT_LABELS[i.unit]}</span>
+                        </>
+                      )}
                     </td>
                   )}
                   {showMoney && (
+                    <td className="p-3 text-right">
+                      <Amount paise={i.ratePaise} />
+                      <span className="ml-1 text-xs text-slate-400">/ {UNIT_LABELS[i.unit]}</span>
+                    </td>
+                  )}
+                  {showMoney && anyHasQuantity && (
                     <td className="p-3 text-right font-medium">
-                      <Amount paise={i.contractAmountPaise} />
+                      {i.contractAmountPaise === undefined ? (
+                        <span className="text-slate-400">&mdash;</span>
+                      ) : (
+                        <Amount paise={i.contractAmountPaise} />
+                      )}
                     </td>
                   )}
                   <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
                     {i.completedQty.toLocaleString('en-IN')}
-                    <span className="ml-1 text-xs text-slate-400">{completionPercent(i)}%</span>
+                    <span className="ml-1 text-xs text-slate-400">{UNIT_LABELS[i.unit]}</span>
+                    {completionPercent(i) !== null && (
+                      <span className="ml-1 text-xs text-slate-400">{completionPercent(i)}%</span>
+                    )}
                   </td>
-                  <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                    {remainingQty(i).toLocaleString('en-IN')}
-                  </td>
+                  {anyHasQuantity && (
+                    <td className="p-3 text-right tabular-nums text-slate-700 dark:text-slate-200">
+                      {remainingQty(i)?.toLocaleString('en-IN') ?? (
+                        <span className="text-slate-400">&mdash;</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -205,13 +230,13 @@ export function BoqSection({
               <tfoot className="border-t-2 border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800">
                 <tr className="font-medium text-slate-900 dark:text-slate-100">
                   <td className="p-3" colSpan={3}>
-                    Rate card total
+                    {t('rateCardTotal')}
                   </td>
                   <td className="p-3 text-right">
                     <Amount paise={totals.contractValuePaise} />
                   </td>
                   <td className="p-3 text-right" colSpan={2}>
-                    <Amount paise={totals.completedValuePaise} /> done
+                    <Amount paise={totals.completedValuePaise} /> {t('done')}
                   </td>
                 </tr>
               </tfoot>
@@ -232,12 +257,11 @@ export function BoqSection({
       */}
       {showMoney && items.data.length > 0 && coverage && !coverage.matches && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          The rate card totals <Amount paise={coverage.boqTotalPaise} />, but the contract value is{' '}
-          <Amount paise={coverage.contractValuePaise} /> &mdash; a difference of{' '}
-          <Amount paise={coverage.differencePaise} signed />.{' '}
-          {coverage.differencePaise > 0
-            ? 'Some contract work may not be itemised yet.'
-            : 'The rate card exceeds the agreed contract.'}
+          {t('rateCardTotalsIs')} <Amount paise={coverage.boqTotalPaise} />
+          {t('butContractValueIs')} <Amount paise={coverage.contractValuePaise} />
+          {t('aDifferenceOf')} <Amount paise={coverage.differencePaise} signed />
+          {t('coverageEnd')}{' '}
+          {coverage.differencePaise > 0 ? t('someWorkNotItemised') : t('rateCardOverContract')}
         </p>
       )}
     </section>
@@ -256,6 +280,7 @@ function AddBoqItemForm({
   onDone: () => void
 }) {
   const user = useCurrentUser()
+  const { t } = useTranslation()
   const repo = useMemo(() => createBoqRepository(db), [])
   const queryClient = useQueryClient()
 
@@ -274,7 +299,7 @@ function AddBoqItemForm({
     try {
       ratePaise = Money.parseRupees(rateInput)
     } catch {
-      rateError = 'Enter a rate like 120'
+      rateError = t('enterRateLike')
     }
   }
 
@@ -284,7 +309,7 @@ function AddBoqItemForm({
 
   const create = useMutation({
     mutationFn: () => {
-      if (!qtyValid || ratePaise === null) throw new Error('Form is incomplete')
+      if (!qtyValid || ratePaise === null) throw new Error(t('formIncomplete'))
       return repo.create(
         projectId,
         {
@@ -313,7 +338,7 @@ function AddBoqItemForm({
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Work item">
+        <Field label={t('workItem')}>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -321,7 +346,7 @@ function AddBoqItemForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Code (optional)">
+        <Field label={`${t('code')} (${t('optional')})`}>
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -332,7 +357,7 @@ function AddBoqItemForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Unit">
+        <Field label={t('unit')}>
           <select
             value={unit}
             onChange={(e) => setUnit(e.target.value as Unit)}
@@ -345,7 +370,7 @@ function AddBoqItemForm({
             ))}
           </select>
         </Field>
-        <Field label="Contract quantity">
+        <Field label={t('contractQty')}>
           <input
             value={qtyInput}
             onChange={(e) => setQtyInput(e.target.value)}
@@ -354,7 +379,7 @@ function AddBoqItemForm({
             className={inputClass}
           />
         </Field>
-        <Field label="Rate per unit">
+        <Field label={t('ratePerUnit')}>
           <input
             value={rateInput}
             onChange={(e) => setRateInput(e.target.value)}
@@ -384,7 +409,7 @@ function AddBoqItemForm({
         disabled={!qtyValid || ratePaise === null || name.trim() === '' || create.isPending}
         className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
       >
-        {create.isPending ? 'Adding…' : 'Add work item'}
+        {create.isPending ? t('adding') : t('addWorkItem')}
       </button>
     </form>
   )
@@ -406,7 +431,7 @@ function QuotationPanel({ projectId, items }: { projectId: string; items: readon
       <QueryError
         error={business.error}
         onRetry={() => void business.refetch()}
-        what="the business details"
+        what={t('businessDetails')}
       />
     )
   }
@@ -485,13 +510,12 @@ function QuotationFields({
     <div className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
       {!hasBusinessName(business) && (
         <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {BUSINESS_NOT_SET_WARNING}
+          {t('businessNotSet')}
         </p>
       )}
 
       <p className="text-sm text-slate-600 dark:text-slate-300">
-        Prints the {lines.length} open rate card {lines.length === 1 ? 'item' : 'items'} as a
-        quotation — description, unit and rate. Quantities and totals are left off deliberately.
+        {t('quotationPrints', { n: lines.length })}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -503,7 +527,7 @@ function QuotationFields({
             className={inputClass}
           />
         </Field>
-        <Field label="Work quoted">
+        <Field label={t('workQuoted')}>
           <input
             value={workTitle}
             onChange={(e) => setWorkTitle(e.target.value)}
@@ -513,7 +537,7 @@ function QuotationFields({
         </Field>
       </div>
 
-      <Field label="Terms & Conditions — one per line">
+      <Field label={t('terms')}>
         <textarea
           value={terms}
           onChange={(e) => setTerms(e.target.value)}

@@ -1,3 +1,6 @@
+import type { Locale } from '@mc/types'
+import { getLocale, translate } from '../i18n/useTranslation'
+
 /**
  * Turns Firestore errors into something a non-technical user can act on.
  *
@@ -30,15 +33,23 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '')
 }
 
-export function describeFirestoreError(error: unknown): DescribedError {
+/**
+ * The locale is a parameter rather than a hook, because this is called from
+ * plain functions as well as components. It defaults to the current selection
+ * so a caller that already re-renders on a locale change need not thread it.
+ */
+export function describeFirestoreError(
+  error: unknown,
+  locale: Locale = getLocale(),
+): DescribedError {
   const code = codeOf(error)
   const raw = messageOf(error)
+  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key)
 
   if (code === 'failed-precondition' && /requires an index/i.test(raw)) {
     return {
-      title: 'Setting up',
-      message:
-        'The database is finishing a one-time setup step for this screen. It usually takes a minute or two — this will clear on its own.',
+      title: t('errSettingUpTitle'),
+      message: t('errSettingUpBody'),
       transient: true,
     }
   }
@@ -46,36 +57,39 @@ export function describeFirestoreError(error: unknown): DescribedError {
   switch (code) {
     case 'unavailable':
       return {
-        title: 'You are offline',
-        message: 'Showing what was saved on this device. New entries need a connection.',
+        title: t('errOfflineTitle'),
+        message: t('errOfflineBody'),
         transient: true,
       }
     case 'permission-denied':
       return {
-        title: 'Not allowed',
-        message: 'Your role does not have access to this. Ask the owner if you need it.',
+        title: t('errNotAllowedTitle'),
+        message: t('errNotAllowedBody'),
         transient: false,
       }
     case 'unauthenticated':
       return {
-        title: 'Signed out',
-        message: 'Your session ended. Sign in again to continue.',
+        title: t('errSignedOutTitle'),
+        message: t('errSignedOutBody'),
         transient: false,
       }
     case 'resource-exhausted':
       return {
-        title: 'Daily limit reached',
-        message:
-          'The free database quota for today is used up. It resets at midnight Pacific time.',
+        title: t('errQuotaTitle'),
+        message: t('errQuotaBody'),
         transient: false,
       }
     case 'deadline-exceeded':
       return {
-        title: 'Took too long',
-        message: 'The connection is slow. Try again in a moment.',
+        title: t('errSlowTitle'),
+        message: t('errSlowBody'),
         transient: true,
       }
     default:
-      return { title: 'Something went wrong', message: raw || 'Unknown error', transient: false }
+      return {
+        title: t('errUnknownTitle'),
+        message: raw || t('errUnknownBody'),
+        transient: false,
+      }
   }
 }

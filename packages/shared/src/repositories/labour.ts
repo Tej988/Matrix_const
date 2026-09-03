@@ -177,6 +177,24 @@ export function createLabourRepository(db: Firestore) {
      * purpose: the person page is a history, and the site somebody left last
      * month is where last month's register and wages live.
      */
+    /**
+     * Every live assignment, across all projects, in one query.
+     *
+     * The roster needs to show at a glance who is actually placed on a site
+     * and who is idle, and asking per labourer would be one read per person -
+     * exactly the N+1 pattern R-10 warns about. A single equality filter on
+     * `status` needs no composite index.
+     */
+    async activeAssignments(): Promise<LabourAssignment[]> {
+      const snap = await getDocs(
+        query(collection(db, 'labourAssignments'), where('status', '==', 'ACTIVE')),
+      )
+      return snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<LabourAssignment, 'id'>),
+      }))
+    },
+
     async assignmentsForLabour(labourId: string): Promise<LabourAssignment[]> {
       const snap = await getDocs(
         query(collection(db, 'labourAssignments'), where('labourId', '==', labourId)),

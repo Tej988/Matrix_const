@@ -5,6 +5,7 @@ import { createUserRepository, type UserRecord } from '@mc/shared/repositories/u
 import { permissionsFor } from '@mc/shared'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
+import { useTranslation } from '../../i18n/useTranslation'
 
 /**
  * User management. OWNER only, in the UI and independently in Rules.
@@ -17,6 +18,7 @@ import { useCurrentUser } from '../auth/authContext'
  */
 export function UsersPage() {
   const currentUser = useCurrentUser()
+  const { t } = useTranslation()
   const repo = useMemo(() => createUserRepository(db), [])
   const queryClient = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
@@ -38,7 +40,7 @@ export function UsersPage() {
   })
 
   if (usersQuery.isPending) {
-    return <p className="p-4 text-slate-500">Loading users…</p>
+    return <p className="p-4 text-slate-500">{t('loading')}</p>
   }
 
   if (usersQuery.isError) {
@@ -47,7 +49,7 @@ export function UsersPage() {
         role="alert"
         className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300"
       >
-        Could not load users. {(usersQuery.error as Error).message}
+        {t('couldNotLoad', { what: t('navUsers') })} {(usersQuery.error as Error).message}
       </p>
     )
   }
@@ -59,9 +61,11 @@ export function UsersPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Users</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            {t('navUsers')}
+          </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {users.length} {users.length === 1 ? 'person' : 'people'} with access
+            {t('countPeopleWithAccess', { n: users.length })}
           </p>
         </div>
         <button
@@ -69,7 +73,7 @@ export function UsersPage() {
           onClick={() => setShowAdd((v) => !v)}
           className="rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
         >
-          {showAdd ? 'Cancel' : 'Add person'}
+          {showAdd ? t('cancel') : t('addPerson')}
         </button>
       </header>
 
@@ -106,16 +110,16 @@ export function UsersPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium text-slate-900 dark:text-slate-100">
                   {user.displayName}
-                  {isSelf && <span className="ml-2 text-xs text-slate-400">you</span>}
+                  {isSelf && <span className="ml-2 text-xs text-slate-400">{t('you')}</span>}
                 </p>
                 <p className="truncate text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
                 <p className="mt-0.5 text-xs text-slate-400">
-                  {permissionsFor(user.role).length} permissions
+                  {t('countPermissions', { n: permissionsFor(user.role).length })}
                 </p>
               </div>
 
               <select
-                aria-label={`Role for ${user.displayName}`}
+                aria-label={t('roleFor', { name: user.displayName })}
                 value={user.role}
                 disabled={isSelf || isLastOwner || permissions.isPending}
                 onChange={(e) =>
@@ -151,7 +155,7 @@ export function UsersPage() {
                     : 'text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950',
                 ].join(' ')}
               >
-                {user.status === 'ACTIVE' ? 'Disable' : 'Enable'}
+                {user.status === 'ACTIVE' ? t('disable') : t('enable')}
               </button>
             </li>
           )
@@ -159,15 +163,14 @@ export function UsersPage() {
       </ul>
 
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-        <strong>When you disable someone, also remove them from the Drive folder.</strong> Drive
-        permissions live outside this app and cannot be revoked from here, so a disabled user keeps
-        access to shared files until you unshare the folder (RISKS.md R-07).
+        <strong>{t('driveWarningTitle')}</strong> {t('driveWarningBody')}
       </p>
     </div>
   )
 }
 
 function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: string }) {
+  const { t } = useTranslation()
   const repo = useMemo(() => createUserRepository(db), [])
   const [uid, setUid] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -195,11 +198,10 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Ask the person to sign in first. Their <strong>account ID</strong> is shown on the
-        waiting-for-access screen &mdash; paste it below.
+        {t('addUserHintBefore')} <strong>{t('accountIdWord')}</strong> {t('addUserHintAfter')}
       </p>
 
-      <Field label="Account ID (UID)">
+      <Field label={t('accountIdUid')}>
         <input
           value={uid}
           onChange={(e) => setUid(e.target.value)}
@@ -208,7 +210,7 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         />
       </Field>
 
-      <Field label="Name">
+      <Field label={t('name')}>
         <input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
@@ -216,7 +218,7 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         />
       </Field>
 
-      <Field label="Email">
+      <Field label={t('email')}>
         <input
           type="email"
           value={email}
@@ -225,7 +227,7 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         />
       </Field>
 
-      <Field label="Role">
+      <Field label={t('role')}>
         <select
           value={role}
           onChange={(e) => setRole(e.target.value as Role)}
@@ -233,8 +235,8 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>
-              {r.charAt(0) + r.slice(1).toLowerCase()} &mdash; {permissionsFor(r).length}{' '}
-              permissions
+              {r.charAt(0) + r.slice(1).toLowerCase()} &mdash;{' '}
+              {t('countPermissions', { n: permissionsFor(r).length })}
             </option>
           ))}
         </select>
@@ -251,7 +253,7 @@ function AddUserForm({ onDone, actorUid }: { onDone: () => void; actorUid: strin
         disabled={!ready || create.isPending}
         className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
       >
-        {create.isPending ? 'Adding…' : 'Add person'}
+        {create.isPending ? t('adding') : t('addPerson')}
       </button>
     </form>
   )

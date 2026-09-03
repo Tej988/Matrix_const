@@ -35,9 +35,6 @@ export function hasBusinessName(profile: BusinessProfile | undefined): boolean {
   return (profile?.name ?? '').trim() !== ''
 }
 
-export const BUSINESS_NOT_SET_WARNING =
-  'Your business name is not set, so documents will print with a placeholder. Set it under Settings → Business details.'
-
 /**
  * What the printers are handed.
  *
@@ -64,7 +61,7 @@ export function BusinessProfileForm() {
       <QueryError
         error={profile.error}
         onRetry={() => void profile.refetch()}
-        what="the business details"
+        what={t('businessDetails')}
       />
     )
   }
@@ -94,7 +91,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
   const save = useMutation({
     mutationFn: () => {
       const trimmed = name.trim()
-      if (trimmed === '') throw new Error('Enter the business name.')
+      if (trimmed === '') throw new Error(t('enterBusinessName'))
 
       // Conditional spread, not `field || undefined`: exactOptionalPropertyTypes
       // rejects an explicit undefined where the property is merely optional.
@@ -128,7 +125,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
       }}
       className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700"
     >
-      <Field label="Business name">
+      <Field label={t('businessName')}>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -137,7 +134,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
         />
       </Field>
 
-      <Field label="Tagline">
+      <Field label={t('tagline')}>
         <input
           value={tagline}
           onChange={(e) => setTagline(e.target.value)}
@@ -146,7 +143,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
         />
       </Field>
 
-      <Field label="Address — one line per row">
+      <Field label={t('address')}>
         <textarea
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -166,7 +163,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
             className={inputClass}
           />
         </Field>
-        <Field label="Email">
+        <Field label={t('email')}>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -178,7 +175,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="GSTIN">
+        <Field label={t('gstin')}>
           <input
             value={gstin}
             onChange={(e) => setGstin(e.target.value.toUpperCase())}
@@ -186,7 +183,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
             className={inputClass}
           />
         </Field>
-        <Field label="Authorized signatory">
+        <Field label={t('signatory')}>
           <input
             value={signatory}
             onChange={(e) => setSignatory(e.target.value)}
@@ -194,7 +191,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
             className={inputClass}
           />
         </Field>
-        <Field label="Bill number prefix">
+        <Field label={t('billPrefix')}>
           <input
             value={billPrefix}
             onChange={(e) => setBillPrefix(e.target.value.toUpperCase())}
@@ -212,7 +209,7 @@ function ProfileFields({ initial }: { initial: BusinessProfile }) {
 
       {saved && !save.isPending && (
         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800 dark:bg-green-950 dark:text-green-300">
-          Saved. New bills and quotations will use these details.
+          {t('businessSaved')}
         </p>
       )}
 

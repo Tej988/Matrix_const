@@ -40,6 +40,24 @@ const plaster: BoqItem = {
   contractAmountPaise: fromRupees(2_25_000),
 }
 
+/**
+ * A rate-only item: quoted by rate, quantity decided by the work. The usual
+ * shape, and the one with no section 4 ceiling. Built by omission rather than
+ * by setting the fields to 0 - that distinction is the whole point.
+ */
+const polish: BoqItem = {
+  id: 'boq-pol',
+  projectId: 'p1',
+  code: 'POL-01',
+  name: 'Flooring Polish',
+  unit: 'SQFT',
+  ratePaise: fromRupees(65),
+  completedQty: 0,
+  billedQty: 0,
+  sortOrder: 2,
+  status: 'ACTIVE',
+}
+
 describe('the section 6 worked example', () => {
   it('prices Block A 2500 sq.ft of flooring at ₹3,00,000', () => {
     const r = validateMeasurement(
@@ -183,6 +201,84 @@ describe('overbilling prevention - critical tests 2 and 3', () => {
     expect(r.ok).toBe(false)
     expect(r.lines).toHaveLength(1)
     expect(r.rejections).toHaveLength(1)
+  })
+})
+
+/**
+ * The guard applies PER ITEM. A sheet can carry both kinds of line, and each is
+ * judged on what its own rate card row actually agreed.
+ */
+describe('lines against an item with no contract quantity', () => {
+  it('accepts the measurement and prices it at the quoted rate', () => {
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-pol', location: 'Lobby', currentQty: 1_250 }],
+      [polish],
+    )
+    expect(r.ok).toBe(true)
+    expect(r.totalAmountPaise).toBe(fromRupees(81_250))
+    expect(r.lines[0]?.isChangeOrder).toBe(false)
+  })
+
+  it('accepts a quantity no contract would have allowed', () => {
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-pol', location: 'Lobby', currentQty: 5_00_000 }],
+      [{ ...polish, completedQty: 5_00_000 }],
+    )
+    expect(r.ok).toBe(true)
+    expect(r.rejections).toHaveLength(0)
+    expect(r.hasChangeOrder).toBe(false)
+  })
+
+  it('still carries forward what has already been measured', () => {
+    // No ceiling does not mean no history: previousQty and totalQty are what
+    // the bill and the running total are built from.
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-pol', location: 'Lobby', currentQty: 500 }],
+      [{ ...polish, completedQty: 1_250 }],
+    )
+    expect(r.lines[0]?.previousQty).toBe(1_250)
+    expect(r.lines[0]?.totalQty).toBe(1_750)
+  })
+
+  it('still accumulates two lines on the same sheet', () => {
+    const r = validateMeasurement(
+      [
+        { boqItemId: 'boq-pol', location: 'Block A', currentQty: 600 },
+        { boqItemId: 'boq-pol', location: 'Block B', currentQty: 400 },
+      ],
+      [polish],
+    )
+    expect(r.ok).toBe(true)
+    expect(r.lines[1]?.previousQty).toBe(600)
+    expect(r.lines[1]?.totalQty).toBe(1_000)
+  })
+
+  it('still rejects a zero or negative quantity', () => {
+    // The entry is nonsense on any job, ceiling or not.
+    const r = validateMeasurement(
+      [{ boqItemId: 'boq-pol', location: 'Lobby', currentQty: -5 }],
+      [polish],
+    )
+    expect(r.ok).toBe(false)
+    expect(r.rejections[0]?.reason).toBe('NOT_POSITIVE')
+  })
+
+  it('guards the fixed-quantity line on the same sheet and lets the other through', () => {
+    // The load-bearing case: dropping the ceiling for rate-only items must not
+    // drop it for the items that still have one.
+    const r = validateMeasurement(
+      [
+        { boqItemId: 'boq-pol', location: 'Lobby', currentQty: 9_99_999 },
+        { boqItemId: 'boq-flo', location: 'Block C', currentQty: 2_000 },
+      ],
+      [polish, { ...flooring, completedQty: 9_000 }],
+    )
+    expect(r.ok).toBe(false)
+    expect(r.lines).toHaveLength(1)
+    expect(r.lines[0]?.boqItemName).toBe('Flooring Polish')
+    expect(r.rejections).toHaveLength(1)
+    expect(r.rejections[0]?.boqItemName).toBe('Flooring')
+    expect(r.rejections[0]?.reason).toBe('EXCEEDS_CONTRACT')
   })
 })
 

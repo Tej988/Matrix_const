@@ -36,12 +36,7 @@ import {
 import { pdfFilename, renderHtmlToPdfBlob } from './pdfExport'
 import { ReportPreview } from './ReportPreview'
 import { ReportHeaderDialog } from './ReportHeaderDialog'
-import {
-  BUSINESS_NOT_SET_WARNING,
-  hasBusinessName,
-  letterheadFor,
-  useBusinessProfile,
-} from '../settings/BusinessProfileForm'
+import { hasBusinessName, letterheadFor, useBusinessProfile } from '../settings/BusinessProfileForm'
 
 /**
  * Reports and export. Sections 37 and 41.
@@ -364,10 +359,7 @@ export function ReportsPage() {
     // like it sent the document is the thing this whole change is undoing.
     saveFile(readyPdf)
     openWhatsapp(reportAttachMessage(printable, readyPdf.name))
-    setNotice(
-      `${readyPdf.name} has been downloaded and WhatsApp is opening in a new tab. ` +
-        'Attach that file to the chat - this browser cannot attach it for you.',
-    )
+    setNotice(t('pdfDownloadedNotice', { file: readyPdf.name }))
   }
 
   function downloadCsv() {
@@ -635,12 +627,16 @@ export function ReportsPage() {
               i.code,
               i.name,
               i.unit,
-              i.contractQty,
+              // Empty, never 0 - a rate-only item has no agreed quantity, and a
+              // zero in an exported spreadsheet would be read as one.
+              i.contractQty ?? '',
               i.ratePaise,
-              i.contractAmountPaise,
+              i.contractAmountPaise ?? '',
               i.completedQty,
               i.billedQty,
-              Math.round((i.contractQty - i.completedQty) * 1000) / 1000,
+              i.contractQty === undefined
+                ? ''
+                : Math.round((i.contractQty - i.completedQty) * 1000) / 1000,
             ] as Cell[],
         )
         return {
@@ -668,7 +664,11 @@ export function ReportsPage() {
   if (projects.isPending) return <p className="p-4 text-slate-500">{t('loading')}</p>
   if (projects.isError) {
     return (
-      <QueryError error={projects.error} onRetry={() => void projects.refetch()} what="projects" />
+      <QueryError
+        error={projects.error}
+        onRetry={() => void projects.refetch()}
+        what={t('projectsTitle')}
+      />
     )
   }
 
@@ -701,7 +701,7 @@ export function ReportsPage() {
 
       {letterheadMissing && (
         <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {BUSINESS_NOT_SET_WARNING}
+          {t('businessNotSet')}
         </p>
       )}
 
@@ -727,14 +727,14 @@ export function ReportsPage() {
               onClick={() => setDialog('header')}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
             >
-              Edit header
+              {t('editHeader')}
             </button>
             <button
               type="button"
               onClick={() => setDialog('print')}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
             >
-              Print
+              {t('print')}
             </button>
           </div>
 
@@ -769,7 +769,7 @@ export function ReportsPage() {
               disabled={pdfBusy}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-slate-600"
             >
-              Download PDF
+              {t('downloadPdf')}
             </button>
             <button
               type="button"
@@ -784,7 +784,7 @@ export function ReportsPage() {
                 onClick={shareCsv}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium dark:border-slate-600"
               >
-                Send spreadsheet as a file
+                {t('sendSheetAsFile')}
               </button>
             )}
           </div>
@@ -793,19 +793,13 @@ export function ReportsPage() {
               WhatsApp" that sends text is a lie the owner finds out about in
               front of a client. */}
           <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            <strong>{t('generatePdf')}</strong> turns the sheet above into a PDF — the letterhead,
-            the table and the signature block exactly as shown. A long register takes a few seconds.
-            The button then becomes <strong>{t('shareOnWhatsApp')}</strong>, which sends the PDF
-            itself, not a summary of it. Two taps, because a browser only lets a page hand a file to
-            another app during the tap — it cannot still be building the file at that moment.
+            <strong>{t('generatePdf')}</strong> {t('pdfExplainMake')}{' '}
+            <strong>{t('shareOnWhatsApp')}</strong>
+            {t('pdfExplainShare')}
             <br />
-            On a phone that opens WhatsApp with the PDF already attached. On a desktop, where no
-            browser can pass a file to another application, the PDF downloads and WhatsApp opens
-            with a covering message — attach the downloaded file to the chat yourself.
+            {t('pdfExplainWhere')}
             <br />
-            <strong>Print</strong> opens the browser&rsquo;s own print view instead. Use it when the
-            text has to be selectable or searchable: the shared PDF is a picture of the page, which
-            is exactly what makes Hindi names come out right.
+            <strong>{t('print')}</strong> {t('pdfExplainPrint')}
           </p>
         </section>
       ) : (
@@ -868,12 +862,9 @@ export function ReportsPage() {
           </ul>
 
           <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            Open a report to read it on screen. The PDF, WhatsApp and the spreadsheet are all
-            offered from there.
+            {t('reportsOpenHint')}
             <br />
-            <strong>Backup (§41).</strong> These downloads are the backup mechanism. There is no
-            automatic off-site backup, because that needs a scheduled job the free plan cannot run.
-            Download the outstanding, billing and payment reports periodically and keep them safe.
+            <strong>{t('backupLabel')}</strong> {t('backupHint')}
           </p>
         </>
       )}
@@ -882,7 +873,7 @@ export function ReportsPage() {
         <ReportHeaderDialog
           initial={open.header}
           saved={open.saved}
-          submitLabel={dialog === 'print' ? 'Open print view' : 'Use these details'}
+          submitLabel={dialog === 'print' ? t('openPrintView') : t('useTheseDetails')}
           onCancel={() => setDialog(null)}
           onSubmit={(header) => {
             if (dialog === 'print') {

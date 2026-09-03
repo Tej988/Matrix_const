@@ -11,12 +11,7 @@ import { Amount, AmountWithWords } from '../../components/Money'
 import { QueryError } from '../../components/QueryError'
 import { useTranslation } from '../../i18n/useTranslation'
 import { openPrintWindow, writeBill } from './billPdf'
-import {
-  BUSINESS_NOT_SET_WARNING,
-  hasBusinessName,
-  letterheadFor,
-  useBusinessProfile,
-} from '../settings/BusinessProfileForm'
+import { hasBusinessName, letterheadFor, useBusinessProfile } from '../settings/BusinessProfileForm'
 
 const STATUS_TONE: Record<BillStatus, string> = {
   DRAFT: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -132,7 +127,9 @@ export function BillsSection({ project }: { project: Project }) {
   if (!can('bill:read')) return null
   if (bills.isPending) return <p className="text-slate-500">{t('loading')}</p>
   if (bills.isError) {
-    return <QueryError error={bills.error} onRetry={() => void bills.refetch()} what="bills" />
+    return (
+      <QueryError error={bills.error} onRetry={() => void bills.refetch()} what={t('billsTitle')} />
+    )
   }
 
   const selectedSheets = billable.filter((m) => selected.has(m.id))
@@ -175,7 +172,7 @@ export function BillsSection({ project }: { project: Project }) {
 
       {letterheadMissing && (
         <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {BUSINESS_NOT_SET_WARNING}
+          {t('businessNotSet')}
         </p>
       )}
 

@@ -248,7 +248,7 @@ export function LabourDetailPage() {
           role="alert"
           className="rounded-lg bg-red-50 p-4 text-red-700 dark:bg-red-950 dark:text-red-300"
         >
-          This person is not in the records, or you do not have access to them.
+          {t('labourNotFound')}
         </p>
         <Link to="/labour" className="text-slate-600 underline dark:text-slate-300">
           ← {t('labourTitle')}
@@ -339,10 +339,7 @@ export function LabourDetailPage() {
 
       {!working && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
-          <p className="text-sm text-amber-900 dark:text-amber-200">
-            No longer working with us. Everything below stays in the records and in past reports —
-            they are only off the roster and off attendance marking.
-          </p>
+          <p className="text-sm text-amber-900 dark:text-amber-200">{t('formerWorkerBanner')}</p>
           {canEdit && (
             <button
               type="button"
@@ -350,7 +347,7 @@ export function LabourDetailPage() {
               disabled={setWorking.isPending}
               className="min-h-11 rounded-lg border border-amber-400 px-4 py-2 text-sm font-medium text-amber-900 disabled:opacity-50 dark:border-amber-600 dark:text-amber-200"
             >
-              Working with us again
+              {t('workingAgain')}
             </button>
           )}
         </div>
@@ -363,7 +360,7 @@ export function LabourDetailPage() {
         {rosterPending ? (
           <p className="text-slate-500">{t('loading')}</p>
         ) : currentAssignments.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Not on any site right now.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('notOnAnySite')}</p>
         ) : (
           <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 text-sm dark:divide-slate-700 dark:border-slate-700">
             {currentAssignments.map((a) => (
@@ -462,9 +459,7 @@ export function LabourDetailPage() {
           )}
 
           {canPay && payProjects.length === 0 && (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Assign them to a project first — a payment is always booked against one.
-            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t('assignBeforePaying')}</p>
           )}
 
           {/* One button, always visible. Not gated on anything being owed:
@@ -528,8 +523,7 @@ export function LabourDetailPage() {
               className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950"
             >
               <p className="text-sm text-amber-900 dark:text-amber-200">
-                Payment saved for {person.name}. The proof did not upload — the money is recorded
-                either way. Attach it here when you can.
+                {t('proofFailedFor', { name: person.name })}
               </p>
               <ProofUpload
                 projectId={orphanedProof.projectId}
@@ -573,13 +567,13 @@ export function LabourDetailPage() {
       {showMoney && (
         <section className="space-y-3">
           <h2 className="text-xs font-medium tracking-wide text-slate-500 uppercase">
-            Payment history
+            {t('paymentHistory')}
           </h2>
           {payments.isError ? (
             <QueryError
               error={payments.error}
               onRetry={() => void payments.refetch()}
-              what="the payment history"
+              what={t('paymentHistory')}
             />
           ) : (
             <PaymentHistory
@@ -615,9 +609,7 @@ export function LabourDetailPage() {
               {confirmingRemoval ? (
                 <>
                   <p className="text-sm text-slate-700 dark:text-slate-200">
-                    {person.name} comes off the roster and out of attendance marking. Every day
-                    worked and every rupee paid stays exactly where it is — nothing is deleted, and
-                    they can be brought back at any time.
+                    {t('confirmLeftExplain', { name: person.name })}
                   </p>
                   <div className="flex flex-wrap gap-3">
                     <button
@@ -626,7 +618,7 @@ export function LabourDetailPage() {
                       disabled={setWorking.isPending}
                       className="min-h-11 rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
                     >
-                      {setWorking.isPending ? t('saving') : 'Yes, they have left'}
+                      {setWorking.isPending ? t('saving') : t('confirmLeft')}
                     </button>
                     <button
                       type="button"
@@ -647,10 +639,10 @@ export function LabourDetailPage() {
                     onClick={() => setConfirmingRemoval(true)}
                     className="min-h-11 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200"
                   >
-                    No longer working with us
+                    {t('noLongerWithUs')}
                   </button>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Takes them off the roster. Their attendance and payment history is kept.
+                    {t('noLongerWithUsHint')}
                   </p>
                 </>
               )}
@@ -702,11 +694,7 @@ function AttendanceRegisters({
 
   if (pending) return <p className="text-slate-500">{t('loading')}</p>
   if (assignments.length === 0) {
-    return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        No attendance yet — they have not been assigned to a site.
-      </p>
-    )
+    return <p className="text-sm text-slate-500 dark:text-slate-400">{t('noAttendanceNoSite')}</p>
   }
 
   return (
@@ -763,7 +751,7 @@ function PaymentHistory({
             <th className="p-3 text-right">{t('amount')}</th>
             <th className="p-3">{t('method')}</th>
             <th className="p-3">{t('paidBy')}</th>
-            <th className="p-3">Proof</th>
+            <th className="p-3">{t('viewProof')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">

@@ -119,14 +119,14 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
           id="report-header-title"
           className="text-xl font-semibold text-slate-900 dark:text-slate-100"
         >
-          Document header
+          {t('reportHeader')}
         </h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Printed at the top of this report. Changes apply to this document only —{' '}
+          {t('documentHeaderHint')}{' '}
           <Link to="/settings" className="font-medium underline">
-            edit your saved details in Settings
+            {t('editSavedDetailsInSettings')}
           </Link>
-          .
+          {t('fullStop')}
         </p>
 
         {profileEmpty && (
@@ -134,14 +134,12 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
             role="alert"
             className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
           >
-            Your business details have not been set up yet, so there is nothing to print as a
-            letterhead. Fill in at least the business name below, or set it once under Settings →
-            Business details.
+            {t('letterheadNotSetUp')}
           </p>
         )}
 
         <div className="mt-4 space-y-4">
-          <Field label="Business name">
+          <Field label={t('businessName')}>
             <input
               value={businessName}
               onChange={(e) => setBusinessName(e.target.value)}
@@ -151,7 +149,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
             />
           </Field>
 
-          <Field label="Tagline">
+          <Field label={t('tagline')}>
             <input
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
@@ -160,7 +158,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
             />
           </Field>
 
-          <Field label="Address — one line per row">
+          <Field label={t('address')}>
             <textarea
               value={address}
               onChange={(e) => setAddress(e.target.value)}
@@ -178,7 +176,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
                 className={inputClass}
               />
             </Field>
-            <Field label="Email">
+            <Field label={t('email')}>
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -189,7 +187,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="GSTIN">
+            <Field label={t('gstin')}>
               <input
                 value={gstin}
                 onChange={(e) => setGstin(e.target.value.toUpperCase())}
@@ -197,7 +195,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
                 className={inputClass}
               />
             </Field>
-            <Field label="Authorized signatory">
+            <Field label={t('signatory')}>
               <input
                 value={signatory}
                 onChange={(e) => setSignatory(e.target.value)}
@@ -216,7 +214,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
             />
           </Field>
 
-          <Field label="Subtitle">
+          <Field label={t('subtitle')}>
             <input
               value={subtitle}
               onChange={(e) => setSubtitle(e.target.value)}
@@ -225,7 +223,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={`Ref (${t('optional')})`}>
+            <Field label={`${t('ref')} (${t('optional')})`}>
               <input
                 value={ref}
                 onChange={(e) => setRef(e.target.value)}
@@ -249,7 +247,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
 
         {dateError && (
           <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-400">
-            Enter a valid date.
+            {t('enterValidDate')}
           </p>
         )}
 
@@ -259,7 +257,7 @@ export function ReportHeaderDialog({ initial, saved, submitLabel, onCancel, onSu
             onClick={resetToSaved}
             className="mt-4 text-sm font-medium text-slate-500 underline dark:text-slate-400"
           >
-            Reset to my saved details
+            {t('resetToSavedDetails')}
           </button>
         )}
 

@@ -204,6 +204,12 @@ export function createMeasurementRepository(db: Firestore) {
           if (!item) continue
           const already = running.get(item.id) ?? 0
           const check = validateQuantity({
+            // Straight off the LIVE document. An item that carries a contract
+            // quantity is re-checked against it here, which is where R-13 is
+            // actually closed; an item that carries none has no ceiling to
+            // re-check and passes on the strength of the measurement itself.
+            // Never `?? 0` - that would turn every rate-only item into a
+            // contract for no work and fail every approval.
             contractQty: item.contractQty,
             completedQty: item.completedQty + already,
             currentQty: line.currentQty,

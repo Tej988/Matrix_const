@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { describeFirestoreError } from '../lib/firestoreErrors'
+import { useTranslation } from '../i18n/useTranslation'
 
 /**
  * Renders a failed query. A transient failure (index building, offline) retries
@@ -11,13 +12,14 @@ import { describeFirestoreError } from '../lib/firestoreErrors'
 export function QueryError({
   error,
   onRetry,
-  what = 'this',
+  what,
 }: {
   error: unknown
   onRetry: () => void
   what?: string
 }) {
-  const described = describeFirestoreError(error)
+  const { t, locale } = useTranslation()
+  const described = describeFirestoreError(error, locale)
   const [countdown, setCountdown] = useState(described.transient ? 10 : 0)
 
   useEffect(() => {
@@ -48,13 +50,17 @@ export function QueryError({
           onClick={onRetry}
           className="rounded-lg border border-current px-4 py-2 text-sm font-medium"
         >
-          Try again
+          {t('tryAgain')}
         </button>
         {described.transient && (
-          <span className="text-xs opacity-75">retrying in {countdown}s</span>
+          <span className="text-xs opacity-75">{t('retryingIn', { n: countdown })}</span>
         )}
       </div>
-      {!described.transient && <p className="pt-1 text-xs opacity-60">Could not load {what}.</p>}
+      {!described.transient && (
+        <p className="pt-1 text-xs opacity-60">
+          {t('couldNotLoad', { what: what ?? t('thisData') })}
+        </p>
+      )}
     </div>
   )
 }

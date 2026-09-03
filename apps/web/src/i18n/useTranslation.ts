@@ -75,6 +75,9 @@ export function translate(locale: Locale, key: StringKey, params?: TranslatePara
   })
 }
 
+/** The lookup function returned by `useTranslation`. */
+export type Translate = (key: StringKey, params?: TranslateParams) => string
+
 export function useTranslation() {
   const [locale, setLocaleState] = useState<Locale>(currentLocale)
 

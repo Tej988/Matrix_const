@@ -392,8 +392,7 @@ export function WagesPage() {
           className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950"
         >
           <p className="text-sm text-amber-900 dark:text-amber-200">
-            Payment saved for {orphanedProof.name}. The proof did not upload — the money is recorded
-            either way. Attach it here when you can.
+            {t('proofFailedFor', { name: orphanedProof.name })}
           </p>
           <ProofUpload
             projectId={activeProjectId}
@@ -711,7 +710,7 @@ export function PayForm({
           role="alert"
           className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200"
         >
-          A payment cannot be dated later than today.
+          {t('futurePaymentDate')}
         </p>
       )}
 

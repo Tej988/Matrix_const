@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Permission } from '@mc/shared'
+import { useTranslation } from '../i18n/useTranslation'
 import { AuthProvider } from '../features/auth/AuthProvider'
 import { useAuth } from '../features/auth/authContext'
 import { SignInScreen } from '../features/auth/SignInScreen'
@@ -59,10 +60,11 @@ export function App() {
  */
 function AuthGate() {
   const { state } = useAuth()
+  const { t } = useTranslation()
 
   switch (state.status) {
     case 'loading':
-      return <FullScreenMessage>Loading…</FullScreenMessage>
+      return <FullScreenMessage>{t('loading')}</FullScreenMessage>
     case 'signed-out':
       return <SignInScreen />
     case 'unprovisioned':

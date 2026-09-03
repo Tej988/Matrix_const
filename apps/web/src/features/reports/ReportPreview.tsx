@@ -1,4 +1,5 @@
 import { Dates } from '@mc/shared'
+import { useTranslation } from '../../i18n/useTranslation'
 import type { PrintableReport } from './reportPdf'
 
 /**
@@ -19,6 +20,7 @@ import type { PrintableReport } from './reportPdf'
 const PREVIEW_ROW_LIMIT = 200
 
 export function ReportPreview({ report }: { report: PrintableReport }) {
+  const { t } = useTranslation()
   const { header } = report
   const numeric = new Set(report.numericColumns)
   const align = (i: number) => (numeric.has(i) ? 'text-right tabular-nums' : 'text-left')
@@ -139,8 +141,7 @@ export function ReportPreview({ report }: { report: PrintableReport }) {
 
         {hidden > 0 && (
           <p className="mt-2 text-[11px] text-slate-600">
-            Showing the first {PREVIEW_ROW_LIMIT} of {report.rows.length} rows. The PDF and the
-            spreadsheet contain all of them.
+            {t('showingFirstRows', { shown: PREVIEW_ROW_LIMIT, all: report.rows.length })}
           </p>
         )}
 

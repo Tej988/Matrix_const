@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState, type ChangeEvent } from 'react'
 import { createGoogleDriveAdapter, isStorageError, type DocumentKind } from '@mc/shared'
+import type { Locale } from '@mc/types'
 import { createPaymentRepository } from '@mc/shared/repositories/payments'
 import { db } from '../lib/firebase'
 import { env } from '../lib/env'
@@ -51,7 +52,7 @@ export function ProofUpload({
   onChange: (result: ProofResult) => void
   disabled?: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, locale } = useTranslation()
   const actor = useCurrentUser()
   const repo = useMemo(() => createPaymentRepository(db), [])
   // Two of these can be on screen at once - the pay form and the retry banner -
@@ -108,7 +109,7 @@ export function ProofUpload({
     } catch (error) {
       // Reported, never rethrown. A throw here would reach the form's submit
       // handler and take the payment down with it.
-      setState({ phase: 'failed', fileName: file.name, message: describeProofError(error) })
+      setState({ phase: 'failed', fileName: file.name, message: describeProofError(error, locale) })
       onChange({ documentId: null, failed: true })
     }
   }
@@ -128,7 +129,7 @@ export function ProofUpload({
   return (
     <div className="space-y-2">
       <label htmlFor={inputId} className={labelClass}>
-        Payment proof <span className="font-normal text-slate-400">({t('optional')})</span>
+        {t('paymentProof')} <span className="font-normal text-slate-400">({t('optional')})</span>
       </label>
 
       <div className="flex items-start gap-3">
@@ -186,9 +187,7 @@ export function ProofUpload({
           )}
 
           {state.phase === 'empty' && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Photo or PDF. The payment is saved even if the attachment is not.
-            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t('proofHint')}</p>
           )}
         </div>
       </div>
@@ -225,7 +224,7 @@ function Thumbnail({ preview, chosen }: { preview: string | null; chosen: File |
  * write (Firestore). Showing "could not sign in" for a full Drive sends someone
  * down the wrong path entirely.
  */
-function describeProofError(error: unknown): string {
+function describeProofError(error: unknown, locale: Locale): string {
   if (isStorageError(error)) return error.message
 
   const code =
@@ -234,7 +233,7 @@ function describeProofError(error: unknown): string {
       : ''
 
   if (code.startsWith('auth/')) return describeAuthError(error)
-  return describeFirestoreError(error).message
+  return describeFirestoreError(error, locale).message
 }
 
 const labelClass = 'mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300'

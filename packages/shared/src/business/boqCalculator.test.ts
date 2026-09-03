@@ -3,6 +3,7 @@ import type { BoqItem, Paise } from '@mc/types'
 import { fromRupees } from '../money/index'
 import {
   contractAmount,
+  hasContractQty,
   remainingQty,
   unbilledQty,
   completionPercent,
@@ -15,21 +16,33 @@ import {
 
 /** Spec section 42, critical tests 1, 2 and 3. */
 
-const item = (over: Partial<BoqItem> = {}): BoqItem => ({
+/** Everything an item has whether or not a quantity was ever agreed. */
+const base = {
   id: 'b1',
   projectId: 'p1',
   code: 'FLO-01',
   name: 'Flooring',
   unit: 'SQFT',
-  contractQty: 10_000,
   ratePaise: fromRupees(120),
-  contractAmountPaise: fromRupees(12_00_000),
   completedQty: 0,
   billedQty: 0,
   sortOrder: 0,
   status: 'ACTIVE',
+} satisfies Omit<BoqItem, 'contractQty' | 'contractAmountPaise'>
+
+/** A fixed-quantity item: the exception now, but still fully supported. */
+const item = (over: Partial<BoqItem> = {}): BoqItem => ({
+  ...base,
+  contractQty: 10_000,
+  contractAmountPaise: fromRupees(12_00_000),
   ...over,
 })
+
+/**
+ * A rate-only item: no contract quantity, no contract amount. The normal shape
+ * of this business's work, and the reason the section 4 ceiling is optional.
+ */
+const rateOnly = (over: Partial<BoqItem> = {}): BoqItem => ({ ...base, ...over })
 
 describe('contract amount - critical test 1', () => {
   it('computes the section 5 rate card exactly', () => {
@@ -52,6 +65,24 @@ describe('contract amount - critical test 1', () => {
   })
 })
 
+describe('whether an item has a contract quantity at all', () => {
+  it('is true for a fixed-quantity item and false for a rate-only one', () => {
+    expect(hasContractQty(item())).toBe(true)
+    expect(hasContractQty(rateOnly())).toBe(false)
+  })
+
+  it('treats an explicit null the same as an absent field', () => {
+    // A stored document can arrive either way. Both mean "never agreed".
+    expect(hasContractQty({ contractQty: null } as unknown as BoqItem)).toBe(false)
+  })
+
+  it('does NOT treat a genuine zero as absent', () => {
+    // A contract quantity of 0 is a strange contract, but it is a stated one -
+    // and it is a real ceiling, not a missing field.
+    expect(hasContractQty(item({ contractQty: 0 }))).toBe(true)
+  })
+})
+
 describe('remaining and unbilled quantities', () => {
   it('reports what is left to measure', () => {
     expect(remainingQty(item({ completedQty: 2500 }))).toBe(7500)
@@ -70,6 +101,37 @@ describe('remaining and unbilled quantities', () => {
   it('reports completion as a percentage of quantity', () => {
     expect(completionPercent(item({ completedQty: 2500 }))).toBe(25)
     expect(completionPercent(item({ contractQty: 0 }))).toBe(0)
+  })
+})
+
+/**
+ * The null-not-zero rule, applied one level below R-01.
+ *
+ * Zero would be read as "this item is finished" or "0% done and no more to
+ * do". Both are lies about an item whose whole point is that the quantity is
+ * decided by the work.
+ */
+describe('an item with NO contract quantity', () => {
+  it('has no remaining quantity - null, not zero', () => {
+    expect(remainingQty(rateOnly())).toBeNull()
+    expect(remainingQty(rateOnly({ completedQty: 1_250 }))).toBeNull()
+  })
+
+  it('has no completion percentage - null, not zero', () => {
+    expect(completionPercent(rateOnly())).toBeNull()
+    expect(completionPercent(rateOnly({ completedQty: 1_250 }))).toBeNull()
+  })
+
+  it('treats an explicit null exactly like an absent field', () => {
+    const stored = { ...rateOnly(), contractQty: null } as unknown as BoqItem
+    expect(remainingQty(stored)).toBeNull()
+    expect(completionPercent(stored)).toBeNull()
+  })
+
+  it('still reports what has been billed against what was measured', () => {
+    // The figure that DOES survive: measured, and of that, billed. No contract
+    // quantity is needed for either.
+    expect(unbilledQty(rateOnly({ completedQty: 1_250, billedQty: 500 }))).toBe(750)
   })
 })
 
@@ -193,6 +255,86 @@ describe('the contract-quantity rule - critical tests 2 and 3', () => {
   })
 })
 
+/**
+ * With no contract quantity there is no ceiling, so EXCEEDS_CONTRACT is
+ * unreachable - not suppressed, not defaulted past, simply not a thing that
+ * can be computed. Everything else about the entry is still checked.
+ */
+describe('the section 4 rule where there IS no contract quantity', () => {
+  for (const [label, contractQty] of [
+    ['absent', undefined],
+    ['explicitly null', null],
+  ] as const) {
+    describe(`contract quantity ${label}`, () => {
+      const input = {
+        contractQty,
+        completedQty: 0,
+        currentQty: 1_250,
+        ratePaise: fromRupees(65),
+      }
+
+      it('accepts the measurement and prices it at the quoted rate', () => {
+        const r = validateQuantity(input)
+        expect(r.ok).toBe(true)
+        if (!r.ok) return
+        expect(r.totalQty).toBe(1_250)
+        expect(r.amountPaise).toBe(fromRupees(81_250))
+        // Not a change order: nothing was agreed to depart from.
+        expect(r.isChangeOrder).toBe(false)
+      })
+
+      it('accepts a quantity that would have blown any plausible contract', () => {
+        const r = validateQuantity({ ...input, completedQty: 9_00_000, currentQty: 9_00_000 })
+        expect(r.ok).toBe(true)
+        if (r.ok) expect(r.isChangeOrder).toBe(false)
+      })
+
+      it('CANNOT return EXCEEDS_CONTRACT, with or without a change order', () => {
+        for (const changeOrderApproved of [true, false]) {
+          const r = validateQuantity({ ...input, completedQty: 1e9, changeOrderApproved })
+          expect(r.ok).toBe(true)
+          if (r.ok) expect(r.isChangeOrder).toBe(false)
+        }
+      })
+
+      it('still rejects zero and negative quantities', () => {
+        for (const q of [0, -5]) {
+          const r = validateQuantity({ ...input, currentQty: q })
+          expect(r.ok).toBe(false)
+          if (!r.ok) expect(r.rejection.reason).toBe('NOT_POSITIVE')
+        }
+      })
+
+      it('still rejects a non-finite quantity', () => {
+        for (const q of [Number.NaN, Number.POSITIVE_INFINITY]) {
+          const r = validateQuantity({ ...input, currentQty: q })
+          expect(r.ok).toBe(false)
+          if (!r.ok) expect(r.rejection.reason).toBe('NOT_FINITE')
+        }
+      })
+    })
+  }
+
+  it('leaves the ceiling in place for an item that DOES carry one', () => {
+    // The decision is per item. A rate-only line and a fixed-quantity line can
+    // sit on the same rate card, and only one of them has a ceiling.
+    const noCeiling = validateQuantity({
+      contractQty: undefined,
+      completedQty: 9_000,
+      currentQty: 2_000,
+      ratePaise: fromRupees(120),
+    })
+    const ceiling = validateQuantity({
+      contractQty: 10_000,
+      completedQty: 9_000,
+      currentQty: 2_000,
+      ratePaise: fromRupees(120),
+    })
+    expect(noCeiling.ok).toBe(true)
+    expect(ceiling.ok).toBe(false)
+  })
+})
+
 describe('roll-ups', () => {
   const items = [
     item({
@@ -226,6 +368,8 @@ describe('roll-ups', () => {
   it('totals the rate card', () => {
     const t = boqTotals(items)
     expect(t.itemCount).toBe(3)
+    expect(t.itemsWithContractQty).toBe(3)
+    expect(t.itemsWithoutContractQty).toBe(0)
     expect(t.contractValuePaise).toBe(fromRupees(17_05_000))
     expect(t.completedValuePaise).toBe(fromRupees(3_45_000)) // 3,00,000 + 45,000
     expect(t.billedValuePaise).toBe(fromRupees(3_00_000))
@@ -240,7 +384,79 @@ describe('roll-ups', () => {
   it('handles an empty rate card without dividing by zero', () => {
     const t = boqTotals([])
     expect(t.contractValuePaise).toBe(fromRupees(0))
+    // Null, not 0%: there is nothing on the card to be a percentage of.
+    expect(t.completionPercent).toBeNull()
+    expect(t.remainingValuePaise).toBeNull()
+  })
+
+  it('reports 0% when the contract-bearing items are all priced at nil', () => {
+    // Owner-supplied material: measured, agreed in quantity, charged at nothing.
+    // A denominator exists, it is just zero rupees.
+    const t = boqTotals([
+      item({ ratePaise: fromRupees(0), contractAmountPaise: fromRupees(0), completedQty: 500 }),
+    ])
     expect(t.completionPercent).toBe(0)
+    expect(t.remainingValuePaise).toBe(fromRupees(0))
+  })
+
+  it('tolerates a stored item that kept its quantity but lost its amount', () => {
+    // Defensive: the two fields travel together and Rules enforce it, but a
+    // half-written legacy document must not make the whole total NaN.
+    const t = boqTotals([{ ...base, contractQty: 10_000 }])
+    expect(t.itemsWithContractQty).toBe(1)
+    expect(t.contractValuePaise).toBe(fromRupees(0))
+  })
+})
+
+/**
+ * The rate card this business actually keeps: rates, no quantities. The totals
+ * have to say what they know and stay silent about what they do not.
+ */
+describe('roll-ups over a rate card with no quantities', () => {
+  const card = [
+    rateOnly({ id: 'a', name: 'Flooring Polish', unit: 'SQFT', ratePaise: fromRupees(65) }),
+    rateOnly({ id: 'b', name: 'Riser Polish', unit: 'RFT', ratePaise: fromRupees(65) }),
+    rateOnly({ id: 'c', name: 'Wall cladding polish', ratePaise: fromRupees(125) }),
+  ]
+
+  it('counts the items it could not value, so the UI can say so', () => {
+    const t = boqTotals(card)
+    expect(t.itemCount).toBe(3)
+    expect(t.itemsWithContractQty).toBe(0)
+    expect(t.itemsWithoutContractQty).toBe(3)
+  })
+
+  it('reports no contract value, no remaining value and no percentage', () => {
+    const t = boqTotals(card)
+    expect(t.contractValuePaise).toBe(fromRupees(0))
+    expect(t.remainingValuePaise).toBeNull()
+    expect(t.completionPercent).toBeNull()
+  })
+
+  it('still totals what HAS been measured and billed - the figures that matter', () => {
+    const t = boqTotals([
+      rateOnly({ id: 'a', ratePaise: fromRupees(65), completedQty: 1_000, billedQty: 400 }),
+      rateOnly({ id: 'b', ratePaise: fromRupees(125), completedQty: 200, billedQty: 0 }),
+    ])
+    expect(t.completedValuePaise).toBe(fromRupees(65_000 + 25_000))
+    expect(t.billedValuePaise).toBe(fromRupees(26_000))
+  })
+
+  it('totals a mixed card over only the rows that have a contract', () => {
+    // 12,00,000 of contract across one row, and a second row that has none.
+    const t = boqTotals([
+      item({ id: 'a', completedQty: 2_500 }),
+      rateOnly({ id: 'b', ratePaise: fromRupees(65), completedQty: 1_000 }),
+    ])
+    expect(t.itemsWithContractQty).toBe(1)
+    expect(t.itemsWithoutContractQty).toBe(1)
+    expect(t.contractValuePaise).toBe(fromRupees(12_00_000))
+    // Measured value covers both rows: 3,00,000 + 65,000.
+    expect(t.completedValuePaise).toBe(fromRupees(3_65_000))
+    // The percentage compares like with like - 3,00,000 of 12,00,000 - rather
+    // than crediting the rate-only row's money against a total it is not in.
+    expect(t.completionPercent).toBe(25)
+    expect(t.remainingValuePaise).toBe(fromRupees(9_00_000))
   })
 })
 
@@ -271,6 +487,23 @@ describe('contract coverage', () => {
     // match - a match would claim an agreement that was never checked.
     expect(contractCoverage(items, null)).toBeNull()
     expect(contractCoverage(items, undefined)).toBeNull()
+  })
+
+  it('has nothing to say when the rate card carries no quantities', () => {
+    // The same invented comparison from the other side: a rate-only card totals
+    // ₹0, and "₹0 against an ₹18,50,000 contract" is arithmetic on a figure
+    // that was never meant to add up.
+    expect(contractCoverage([rateOnly()], fromRupees(18_50_000))).toBeNull()
+  })
+
+  it('still compares when at least one item carries a quantity', () => {
+    const c = contractCoverage([item(), rateOnly({ id: 'b' })], fromRupees(18_50_000))
+    expect(c?.boqTotalPaise).toBe(fromRupees(12_00_000))
+  })
+
+  it('reports the whole contract as unitemised when the rate card is empty', () => {
+    // Nothing has been entered yet, which is a real and useful thing to see.
+    expect(contractCoverage([], fromRupees(18_50_000))?.differencePaise).toBe(fromRupees(18_50_000))
   })
 })
 

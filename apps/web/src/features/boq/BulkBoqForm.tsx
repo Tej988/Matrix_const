@@ -6,7 +6,7 @@ import { UNIT_LABELS } from '@mc/types'
 import { db } from '../../lib/firebase'
 import { useCurrentUser } from '../auth/authContext'
 import { Amount, AmountWithWords } from '../../components/Money'
-import { useTranslation } from '../../i18n/useTranslation'
+import { useTranslation, type Translate } from '../../i18n/useTranslation'
 
 /**
  * Bulk rate-card entry.
@@ -59,7 +59,9 @@ export function BulkBoqForm({
             code,
             name: row.name,
             unit: row.unit,
-            contractQty: row.contractQty,
+            // Spread, not `contractQty: undefined` - Firestore rejects an
+            // explicit undefined, and exactOptionalPropertyTypes rejects it here.
+            ...(row.contractQty !== undefined ? { contractQty: row.contractQty } : {}),
             ratePaise: row.ratePaise,
           },
           nextSortOrder + offset,
@@ -83,10 +85,7 @@ export function BulkBoqForm({
     <div className="space-y-4 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
       <div>
         <h3 className="font-medium text-slate-900 dark:text-slate-100">{t('pasteFromSheet')}</h3>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Copy the item, unit, quantity and rate columns out of your sheet and paste them below. A
-          header row is fine, and so is a comma-separated file.
-        </p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('pasteFromSheetHint')}</p>
       </div>
 
       <textarea
@@ -127,7 +126,7 @@ export function BulkBoqForm({
                         )}
                         {row.warnings.map((w, i) => (
                           <p key={i} className="text-xs text-amber-700 dark:text-amber-400">
-                            {describeWarning(w)}
+                            {describeWarning(t, w)}
                           </p>
                         ))}
                       </td>
@@ -135,13 +134,19 @@ export function BulkBoqForm({
                         {UNIT_LABELS[row.unit]}
                       </td>
                       <td className="p-2 text-right tabular-nums text-slate-700 dark:text-slate-200">
-                        {row.contractQty.toLocaleString('en-IN')}
+                        {row.contractQty?.toLocaleString('en-IN') ?? (
+                          <span className="text-slate-400">&mdash;</span>
+                        )}
                       </td>
                       <td className="p-2 text-right">
                         <Amount paise={row.ratePaise} />
                       </td>
                       <td className="p-2 pr-3 text-right font-medium">
-                        <Amount paise={row.contractAmountPaise} />
+                        {row.contractAmountPaise === undefined ? (
+                          <span className="text-slate-400">&mdash;</span>
+                        ) : (
+                          <Amount paise={row.contractAmountPaise} />
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -154,7 +159,7 @@ export function BulkBoqForm({
                           {row.raw}
                         </p>
                         <p className="text-sm text-red-700 dark:text-red-400">
-                          {row.errors.map(describeError).join(' · ')}
+                          {row.errors.map((e) => describeError(t, e)).join(' · ')}
                         </p>
                       </td>
                     </tr>
@@ -166,7 +171,7 @@ export function BulkBoqForm({
                   <td className="p-3" colSpan={5}>
                     {t('total')}
                     <span className="ml-2 text-xs font-normal text-slate-500 dark:text-slate-400">
-                      {validCount} of {parsed.rows.length} rows
+                      {t('rowsOfTotal', { ok: validCount, all: parsed.rows.length })}
                     </span>
                   </td>
                   <td className="p-3 pr-3 text-right">
@@ -185,8 +190,7 @@ export function BulkBoqForm({
 
           {rejectedCount > 0 && (
             <p className="text-sm text-red-700 dark:text-red-400">
-              {rejectedCount} {rejectedCount === 1 ? 'row' : 'rows'} could not be read and will be
-              skipped. Fix them above and they will appear here.
+              {t('countRowsRejected', { n: rejectedCount })}
             </p>
           )}
         </>
@@ -195,8 +199,7 @@ export function BulkBoqForm({
       {create.isError && (
         <p role="alert" className="text-sm text-red-700 dark:text-red-400">
           {(create.error as Error).message}
-          {savedCount > 0 &&
-            ` — ${savedCount} of ${validCount} items were already saved. Remove those lines before trying again.`}
+          {savedCount > 0 && t('partiallySaved', { saved: savedCount, total: validCount })}
         </p>
       )}
 
@@ -216,44 +219,44 @@ export function BulkBoqForm({
           className="flex-1 rounded-xl bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
         >
           {create.isPending
-            ? `Adding ${savedCount + 1} of ${validCount}…`
-            : `${t('add')} ${validCount} ${validCount === 1 ? 'item' : 'items'}`}
+            ? t('addingNofM', { done: savedCount + 1, total: validCount })
+            : t('addItems', { n: validCount })}
         </button>
       </div>
     </div>
   )
 }
 
-function describeError(error: BoqRowError): string {
+function describeError(t: Translate, error: BoqRowError): string {
   switch (error.reason) {
     case 'MISSING_FIELD':
-      return `${FIELD_LABELS[error.field]} is missing`
+      return t('boqMissingField', { field: t(FIELD_LABELS[error.field]) })
     case 'UNKNOWN_UNIT':
-      return `"${error.value}" is not a unit we know`
+      return t('boqUnknownUnit', { value: error.value })
     case 'BAD_QUANTITY':
-      return `"${error.value}" is not a quantity`
+      return t('boqBadQuantity', { value: error.value })
     case 'BAD_RATE':
-      return `"${error.value}" is not a rate`
+      return t('boqBadRate', { value: error.value })
     case 'AMOUNT_TOO_LARGE':
-      return 'Quantity × rate is beyond the amount limit — check for an extra zero'
+      return t('boqAmountTooLarge')
   }
 }
 
-function describeWarning(warning: BoqRowWarning): string {
-  const what = warning.field === 'code' ? 'code' : 'name'
+function describeWarning(t: Translate, warning: BoqRowWarning): string {
+  const what = warning.field === 'code' ? t('wordCode') : t('wordName')
   return warning.reason === 'DUPLICATE_IN_PASTE'
-    ? `Same ${what} as row ${warning.firstRowNumber}`
-    : `This ${what} is already on the rate card`
+    ? t('boqDuplicateInPaste', { what, row: warning.firstRowNumber })
+    : t('boqAlreadyOnRateCard', { what })
 }
 
 /**
- * Deliberately not translated per key: the surrounding message is English, and
- * these are the same four columns the single-item form names.
+ * The same four columns the single-item form names, so the paste diagnostics
+ * and the form agree on what each field is called in either language.
  */
 const FIELD_LABELS = {
-  code: 'Code',
-  name: 'Work item',
-  unit: 'Unit',
-  quantity: 'Contract quantity',
-  rate: 'Rate per unit',
+  code: 'code',
+  name: 'workItem',
+  unit: 'unit',
+  quantity: 'contractQty',
+  rate: 'ratePerUnit',
 } as const

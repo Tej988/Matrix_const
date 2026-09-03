@@ -9,6 +9,12 @@ import { validateQuantity, type QuantityRejection } from './boqCalculator'
  * contract-quantity rule. The two meet here - the quantity check is evaluated
  * at APPROVAL against live BOQ quantities, not at draft time against whatever
  * was on screen when someone started typing (R-13).
+ *
+ * The section 4 ceiling is decided PER ITEM, not per sheet. A rate-only item
+ * has no contract quantity and so no ceiling; a fixed-quantity item on the very
+ * same sheet keeps the full check. `validateQuantity` makes that call from the
+ * item it is handed, so nothing here needs to branch on it - the rejections
+ * simply do not arise for items that never had a ceiling.
  */
 
 export interface DraftLine {
@@ -82,6 +88,9 @@ export function validateMeasurement(
     const previousQty = item.completedQty + alreadyOnSheet
 
     const check = validateQuantity({
+      // Passed through as it is - absent means absent, and there is then no
+      // ceiling for this line. Never `?? 0`: a zero ceiling would reject every
+      // measurement against a rate-only item.
       contractQty: item.contractQty,
       completedQty: previousQty,
       currentQty: line.currentQty,

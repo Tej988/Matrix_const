@@ -11,6 +11,18 @@ import { contractAmount, roundQty } from './boqCalculator'
  * against an incomplete contract. So the rate card is accepted in the shape it
  * already exists in: a block of cells copied out of Excel.
  *
+ * TWO SHAPES ARE ACCEPTED, because the business has two.
+ *
+ *   Description | Unit | Quantity | Rate   - a fixed-quantity bill of quantities
+ *   Description | Unit | Rate              - their own quotation, verbatim
+ *
+ * The second is the normal one: this business quotes rates and bills what is
+ * measured, so the quantity column simply does not exist on the sheet they
+ * copy from. A paste with no quantity column is not a paste missing a column;
+ * it is the document they actually have. Rows from it carry no contractQty and
+ * no contractAmountPaise, and the section 4 ceiling does not apply to them -
+ * see boqCalculator and RISKS.md R-13.
+ *
  * Pure text in, data out. Nothing here creates anything; the caller decides
  * what to do with the rows it gets back. Money stays integer paise throughout
  * (ADR-004), and the amount column of the source sheet is deliberately ignored.
@@ -20,11 +32,14 @@ import { contractAmount, roundQty } from './boqCalculator'
 // Shapes
 // ---------------------------------------------------------------------------
 
-/** The columns a paste can carry. `code` is optional; the rest are required. */
+/**
+ * The columns a paste can carry. `code` and `quantity` are optional; a paste
+ * without a quantity column is a rate card, not a broken bill of quantities.
+ */
 export type BoqColumn = 'code' | 'name' | 'unit' | 'quantity' | 'rate'
 
 export type BoqRowError =
-  /** The column is absent from the paste, or the cell is blank. */
+  /** The column is present in the paste but the cell is blank. */
   | { reason: 'MISSING_FIELD'; field: BoqColumn }
   | { reason: 'UNKNOWN_UNIT'; value: string }
   | { reason: 'BAD_QUANTITY'; value: string }
@@ -45,9 +60,11 @@ export interface ParsedBoqRow {
   code?: string
   name: string
   unit: Unit
-  contractQty: number
+  /** Absent when the paste had no quantity column - the usual case. */
+  contractQty?: number
   ratePaise: Paise
-  contractAmountPaise: Paise
+  /** Absent exactly when contractQty is: there is nothing to multiply. */
+  contractAmountPaise?: Paise
   /** Non-fatal. The row is still importable; the user decides. */
   warnings: BoqRowWarning[]
 }
@@ -66,8 +83,18 @@ export interface BoqImportResult {
   rows: BoqImportRow[]
   /** The importable rows, in paste order - exactly what a confirm button submits. */
   valid: ParsedBoqRow[]
-  /** Valid rows only. A total that silently included unparseable lines would be a lie. */
+  /**
+   * Valid rows only, and only those that HAVE an amount. A rate-only paste
+   * totals zero because there is nothing to total - the caller should hide the
+   * figure rather than print ₹0 under a page of real rates.
+   */
   totalPaise: Paise
+  /**
+   * Whether this paste carried a quantity column at all. Drives the preview:
+   * with no quantities there are no Quantity or Amount columns to show, and no
+   * meaningful total.
+   */
+  hasQuantityColumn: boolean
   /** True when the first line was read as a header and skipped. */
   hasHeader: boolean
   /** A tab for an Excel paste, a comma for CSV. Surfaced so a confused paste can be diagnosed. */
@@ -202,8 +229,16 @@ const HEADER_WORDS: Record<string, BoqColumn | 'ignore'> = {
 
 type ColumnMap = Partial<Record<BoqColumn, number>>
 
-/** No header: the order the single-item form asks for, and the order every sheet uses. */
-const DEFAULT_COLUMNS: ColumnMap = { name: 0, unit: 1, quantity: 2, rate: 3 }
+/** A bill of quantities: the order every such sheet uses. */
+const FOUR_COLUMNS: ColumnMap = { name: 0, unit: 1, quantity: 2, rate: 3 }
+
+/**
+ * A quotation: description, unit, rate. The owner's own sheet, and the shape a
+ * paste falls back to whenever there is no fourth column to read a quantity
+ * from - including a two-column paste, which is this shape with the rate
+ * missing and should say so rather than mis-name its columns.
+ */
+const THREE_COLUMNS: ColumnMap = { name: 0, unit: 1, rate: 2 }
 
 /**
  * Column positions if this line is a header, null if it is data.
@@ -230,6 +265,34 @@ function readHeader(cells: readonly string[]): ColumnMap | null {
 
   if (recognised < 2 || mapped === 0) return null
   return columns
+}
+
+/**
+ * How many columns this line really has, ignoring trailing empties.
+ *
+ * A spreadsheet leaves a stray trailing tab behind often enough that counting
+ * raw cells would read a three-column quotation as a four-column BOQ and then
+ * report every rate as a missing rate.
+ */
+function meaningfulWidth(cells: readonly string[]): number {
+  for (let i = cells.length - 1; i >= 0; i -= 1) {
+    if (cells[i] !== '') return i + 1
+  }
+  return 0
+}
+
+/**
+ * Which shape an un-headed paste is, decided once for the whole block.
+ *
+ * The WIDEST data line wins rather than the first. A four-column sheet whose
+ * first row happens to be missing its rate must still be read as four columns -
+ * that row is then reported as incomplete, which is the truth - whereas
+ * deciding from the first line alone would silently re-read every quantity in
+ * the sheet as a rate.
+ */
+function shapeByWidth(lines: readonly { cells: string[] }[]): ColumnMap {
+  const width = lines.reduce((max, l) => Math.max(max, meaningfulWidth(l.cells)), 0)
+  return width >= 4 ? FOUR_COLUMNS : THREE_COLUMNS
 }
 
 /**
@@ -269,6 +332,12 @@ function splitLine(line: string, delimiter: string): string[] {
   return cells
 }
 
+interface SplitLine {
+  rowNumber: number
+  raw: string
+  cells: string[]
+}
+
 // ---------------------------------------------------------------------------
 // The parser
 // ---------------------------------------------------------------------------
@@ -283,32 +352,30 @@ export function parseBoqPaste(text: string, options: BoqImportOptions = {}): Boq
   const seenNames = new Map<string, number>()
   const seenCodes = new Map<string, number>()
 
-  let columns = DEFAULT_COLUMNS
-  let hasHeader = false
-  let sawFirstLine = false
+  // Split everything up front: the shape of the paste is a property of the
+  // whole block, so it cannot be decided while walking the rows one at a time.
+  const lines: SplitLine[] = []
+  for (const [index, raw] of text.split(/\r\n|\r|\n/).entries()) {
+    if (raw.trim() === '') continue
+    const cells = splitLine(raw, delimiter)
+    // ",,," is a blank row an editor left behind, not a row missing every field.
+    if (cells.every((c) => c === '')) continue
+    lines.push({ rowNumber: index + 1, raw, cells })
+  }
+
+  const first = lines[0]
+  const header = first === undefined ? null : readHeader(first.cells)
+  const hasHeader = header !== null
+  const data = hasHeader ? lines.slice(1) : lines
+  const columns = header ?? shapeByWidth(data)
 
   const rows: BoqImportRow[] = []
   const valid: ParsedBoqRow[] = []
   let errorCount = 0
   let warningCount = 0
 
-  for (const [index, line] of text.split(/\r\n|\r|\n/).entries()) {
-    const rowNumber = index + 1
-    if (line.trim() === '') continue
-
-    const cells = splitLine(line, delimiter)
-    // ",,," is a blank row an editor left behind, not a row missing every field.
-    if (cells.every((c) => c === '')) continue
-
-    if (!sawFirstLine) {
-      sawFirstLine = true
-      const header = readHeader(cells)
-      if (header !== null) {
-        columns = header
-        hasHeader = true
-        continue
-      }
-    }
+  for (const line of data) {
+    const { rowNumber, cells } = line
 
     const cell = (column: BoqColumn): string => {
       const at = columns[column]
@@ -329,13 +396,19 @@ export function parseBoqPaste(text: string, options: BoqImportOptions = {}): Boq
       if (unit === null) errors.push({ reason: 'UNKNOWN_UNIT', value: unitText })
     }
 
-    const qtyText = cell('quantity')
-    let contractQty: number | null = null
-    if (qtyText === '') {
-      errors.push({ reason: 'MISSING_FIELD', field: 'quantity' })
-    } else {
-      contractQty = parseQuantity(qtyText)
-      if (contractQty === null) errors.push({ reason: 'BAD_QUANTITY', value: qtyText })
+    // Only validated when the paste HAS a quantity column. Where it has none
+    // the quantity is not missing, it does not exist - and a rate card without
+    // quantities is the document this business actually works from.
+    let contractQty: number | undefined
+    if (columns.quantity !== undefined) {
+      const qtyText = cell('quantity')
+      if (qtyText === '') {
+        errors.push({ reason: 'MISSING_FIELD', field: 'quantity' })
+      } else {
+        const parsed = parseQuantity(qtyText)
+        if (parsed === null) errors.push({ reason: 'BAD_QUANTITY', value: qtyText })
+        else contractQty = parsed
+      }
     }
 
     const rateText = cell('rate')
@@ -356,26 +429,28 @@ export function parseBoqPaste(text: string, options: BoqImportOptions = {}): Boq
 
     // Every field is checked before bailing out. A row missing its unit AND its
     // rate should say both, not send the user round the loop twice.
-    if (unit === null || contractQty === null || ratePaise === null || errors.length > 0) {
+    if (unit === null || ratePaise === null || errors.length > 0) {
       errorCount += errors.length
-      rows.push({ ok: false, rowNumber, raw: line, errors })
+      rows.push({ ok: false, rowNumber, raw: line.raw, errors })
       continue
     }
 
-    let contractAmountPaise: Paise
-    try {
-      contractAmountPaise = contractAmount(contractQty, ratePaise)
-    } catch {
-      // Money.paise guards at Rs 1,000 crore. One absurd line must not throw out
-      // of the parser and take the other forty rows with it.
-      errorCount += 1
-      rows.push({
-        ok: false,
-        rowNumber,
-        raw: line,
-        errors: [{ reason: 'AMOUNT_TOO_LARGE', contractQty, ratePaise }],
-      })
-      continue
+    let contractAmountPaise: Paise | undefined
+    if (contractQty !== undefined) {
+      try {
+        contractAmountPaise = contractAmount(contractQty, ratePaise)
+      } catch {
+        // Money.paise guards at Rs 1,000 crore. One absurd line must not throw out
+        // of the parser and take the other forty rows with it.
+        errorCount += 1
+        rows.push({
+          ok: false,
+          rowNumber,
+          raw: line.raw,
+          errors: [{ reason: 'AMOUNT_TOO_LARGE', contractQty, ratePaise }],
+        })
+        continue
+      }
     }
 
     // Duplicates warn rather than reject. A BOQ legitimately repeats "Flooring"
@@ -423,9 +498,11 @@ export function parseBoqPaste(text: string, options: BoqImportOptions = {}): Boq
       ...(code !== '' ? { code } : {}),
       name,
       unit,
-      contractQty,
+      // Conditional spreads, not `contractQty: undefined` - Firestore rejects an
+      // explicit undefined, and exactOptionalPropertyTypes rejects it here.
+      ...(contractQty !== undefined ? { contractQty } : {}),
       ratePaise,
-      contractAmountPaise,
+      ...(contractAmountPaise !== undefined ? { contractAmountPaise } : {}),
       warnings,
     }
     valid.push(row)
@@ -435,7 +512,10 @@ export function parseBoqPaste(text: string, options: BoqImportOptions = {}): Boq
   return {
     rows,
     valid,
-    totalPaise: sum(valid.map((r) => r.contractAmountPaise)),
+    totalPaise: sum(
+      valid.flatMap((r) => (r.contractAmountPaise === undefined ? [] : [r.contractAmountPaise])),
+    ),
+    hasQuantityColumn: columns.quantity !== undefined,
     hasHeader,
     delimiter,
     errorCount,

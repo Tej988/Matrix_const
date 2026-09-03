@@ -21,13 +21,18 @@ function toBoqItem(id: string, d: Record<string, unknown>): BoqItem {
     code: (d['code'] as string) ?? '',
     name: (d['name'] as string) ?? '',
     unit: (d['unit'] as Unit) ?? 'NOS',
-    contractQty: (d['contractQty'] as number) ?? 0,
     ratePaise: (d['ratePaise'] as Paise) ?? (0 as Paise),
-    contractAmountPaise: (d['contractAmountPaise'] as Paise) ?? (0 as Paise),
     completedQty: (d['completedQty'] as number) ?? 0,
     billedQty: (d['billedQty'] as number) ?? 0,
     sortOrder: (d['sortOrder'] as number) ?? 0,
     status: (d['status'] as BoqItem['status']) ?? 'ACTIVE',
+    // NOT defaulted to 0. An absent contract quantity means the item is priced
+    // by rate alone; a 0 here would become a section 4 ceiling of zero and
+    // reject every measurement ever entered against it.
+    ...(typeof d['contractQty'] === 'number' ? { contractQty: d['contractQty'] } : {}),
+    ...(typeof d['contractAmountPaise'] === 'number'
+      ? { contractAmountPaise: d['contractAmountPaise'] as Paise }
+      : {}),
     ...(d['description'] ? { description: d['description'] as string } : {}),
     ...(d['hsnSac'] ? { hsnSac: d['hsnSac'] as string } : {}),
   }
@@ -38,7 +43,8 @@ export interface NewBoqItem {
   name: string
   description?: string
   unit: Unit
-  contractQty: number
+  /** Omitted on a rate-only item, which is how this business normally quotes. */
+  contractQty?: number
   ratePaise: Paise
 }
 
@@ -60,6 +66,10 @@ export function createBoqRepository(db: Firestore) {
      * read. Storing it means a later rate change cannot silently restate the
      * agreed contract - and it lets Security Rules validate the arithmetic
      * without needing to multiply.
+     *
+     * Both quantity fields are written only when there IS a quantity. The two
+     * travel together and are absent together; Firestore rejects an explicit
+     * undefined, and a stored 0 would read as a contract for no work.
      */
     async create(
       projectId: string,
@@ -73,9 +83,13 @@ export function createBoqRepository(db: Firestore) {
         code: input.code,
         name: input.name,
         unit: input.unit,
-        contractQty: input.contractQty,
         ratePaise: input.ratePaise,
-        contractAmountPaise: contractAmount(input.contractQty, input.ratePaise),
+        ...(input.contractQty !== undefined
+          ? {
+              contractQty: input.contractQty,
+              contractAmountPaise: contractAmount(input.contractQty, input.ratePaise),
+            }
+          : {}),
         completedQty: 0,
         billedQty: 0,
         sortOrder,
@@ -90,9 +104,17 @@ export function createBoqRepository(db: Firestore) {
     },
 
     /**
-     * Editing quantity or rate recomputes the contract amount and records the
-     * change. Rate history matters: an approved measurement snapshotted the old
-     * rate, and this must not appear to rewrite it.
+     * Editing rate, name, unit or quantity, recording the change.
+     *
+     * Rate history matters: an approved measurement snapshotted the old rate
+     * and an issued bill is frozen, so a rate change applies to future work
+     * only and must never appear to rewrite what was already agreed.
+     *
+     * A patch that says nothing about `contractQty` LEAVES IT ALONE, whichever
+     * state it is in. The edit form no longer offers the field, and a form that
+     * has stopped asking a question must not be read as answering it "none" -
+     * that would quietly strip the section 4 ceiling off a genuinely
+     * fixed-quantity item.
      */
     async update(
       item: BoqItem,
@@ -110,9 +132,13 @@ export function createBoqRepository(db: Firestore) {
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.unit !== undefined ? { unit: patch.unit } : {}),
         ...(patch.description !== undefined ? { description: patch.description } : {}),
-        contractQty,
         ratePaise,
-        contractAmountPaise: contractAmount(contractQty, ratePaise),
+        // The amount is quantity x rate, so it is rewritten only where a
+        // quantity exists. On a rate-only item neither field is touched and
+        // neither is created.
+        ...(contractQty !== undefined
+          ? { contractQty, contractAmountPaise: contractAmount(contractQty, ratePaise) }
+          : {}),
         updatedAt: serverTimestamp(),
         updatedBy: actor.uid,
       })
@@ -127,8 +153,11 @@ export function createBoqRepository(db: Firestore) {
           entityType: 'boqItem',
           entityId: item.id,
           projectId: item.projectId,
-          before: { ratePaise: item.ratePaise, contractQty: item.contractQty },
-          after: { ratePaise, contractQty },
+          // `null` rather than an omitted key: the audit entry is a record of
+          // what the field WAS, and "there was no contract quantity" is itself
+          // the fact worth keeping. Firestore rejects an explicit undefined.
+          before: { ratePaise: item.ratePaise, contractQty: item.contractQty ?? null },
+          after: { ratePaise, contractQty: contractQty ?? null },
           at: serverTimestamp(),
         })
       }
