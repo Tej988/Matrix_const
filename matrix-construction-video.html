@@ -1,0 +1,1070 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Matrix Construction — Promo Video</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        font-family: 'Segoe UI', sans-serif;
+      }
+
+      #stage-wrap {
+        position: relative;
+        width: 960px;
+        height: 540px;
+        overflow: hidden;
+        background: #060608;
+        box-shadow:
+          0 0 80px rgba(245, 166, 35, 0.15),
+          0 0 4px rgba(245, 166, 35, 0.4);
+      }
+
+      canvas#rain {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.6s ease;
+      }
+      .scene.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      #progress-bar {
+        width: 960px;
+        height: 3px;
+        background: #111;
+        margin-top: 6px;
+        border-radius: 2px;
+        overflow: hidden;
+      }
+      #progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #f5a623, #00c896);
+        width: 0%;
+      }
+
+      #controls {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+        align-items: center;
+      }
+
+      .ctrl-btn {
+        background: #1a1a1a;
+        border: 1px solid #333;
+        color: #f5a623;
+        padding: 7px 18px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        transition: background 0.2s;
+      }
+      .ctrl-btn:hover {
+        background: #2a2200;
+        border-color: #f5a623;
+      }
+      #scene-counter {
+        color: #555;
+        font-size: 12px;
+        letter-spacing: 1px;
+      }
+
+      /* SCENE 1 */
+      #s1 {
+        background: transparent;
+        z-index: 2;
+      }
+      #s1 .badge {
+        display: inline-block;
+        border: 1px solid #f5a623;
+        color: #f5a623;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        padding: 4px 14px;
+        margin-bottom: 18px;
+        opacity: 0;
+      }
+      #s1 .headline {
+        font-size: 72px;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: -1px;
+        color: #ebebeb;
+        opacity: 0;
+        text-align: center;
+      }
+      #s1 .headline .amber {
+        color: #f5a623;
+      }
+      #s1 .tagline {
+        font-size: 16px;
+        color: #888;
+        font-weight: 300;
+        margin-top: 16px;
+        letter-spacing: 1px;
+        opacity: 0;
+      }
+
+      /* SCENE 2 */
+      #s2 {
+        background: #0d0d1a;
+        z-index: 2;
+        flex-direction: column;
+        padding: 40px 48px;
+      }
+      #s2 .s-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        color: #f5a623;
+        margin-bottom: 10px;
+        align-self: flex-start;
+      }
+      #s2 .s-title {
+        font-size: 38px;
+        font-weight: 800;
+        color: #ebebeb;
+        align-self: flex-start;
+        line-height: 1.1;
+        margin-bottom: 24px;
+      }
+      .pain-grid-v {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        width: 100%;
+      }
+      .p-card {
+        background: #111118;
+        border: 1px solid #1e1e2e;
+        border-radius: 6px;
+        padding: 16px;
+        opacity: 0;
+        transform: translateY(16px);
+        transition:
+          opacity 0.4s ease,
+          transform 0.4s ease;
+      }
+      .p-card.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .p-card .p-icon {
+        font-size: 22px;
+        margin-bottom: 8px;
+      }
+      .p-card .p-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ebebeb;
+        margin-bottom: 4px;
+      }
+      .p-card .p-desc {
+        font-size: 11px;
+        color: #666;
+        line-height: 1.5;
+      }
+
+      /* SCENE 3 */
+      #s3 {
+        background: #060608;
+        z-index: 2;
+        padding: 36px 48px;
+        flex-direction: row;
+        gap: 44px;
+        align-items: center;
+      }
+      .feat-left {
+        flex: 1;
+      }
+      .feat-tag {
+        display: inline-block;
+        background: rgba(0, 200, 150, 0.12);
+        color: #00c896;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        padding: 3px 10px;
+        border-radius: 2px;
+        margin-bottom: 12px;
+      }
+      .feat-heading {
+        font-size: 34px;
+        font-weight: 800;
+        color: #ebebeb;
+        line-height: 1.1;
+        margin-bottom: 10px;
+      }
+      .feat-sub {
+        font-size: 13px;
+        color: #777;
+        line-height: 1.6;
+        margin-bottom: 16px;
+      }
+      .feat-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .feat-list li {
+        font-size: 12px;
+        color: #ebebeb;
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .feat-list li::before {
+        content: '▸';
+        color: #00c896;
+        flex-shrink: 0;
+      }
+      .mock-table {
+        flex: 1;
+        background: #111118;
+        border: 1px solid #1e1e2e;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .mock-th {
+        background: #1a1a28;
+        display: grid;
+        grid-template-columns: 2fr 1.5fr 1fr 1fr;
+        padding: 8px 12px;
+        border-bottom: 1px solid #1e1e2e;
+      }
+      .mock-th span {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: #555;
+      }
+      .mock-tr {
+        display: grid;
+        grid-template-columns: 2fr 1.5fr 1fr 1fr;
+        padding: 9px 12px;
+        border-bottom: 1px solid #0e0e18;
+        opacity: 0;
+        transform: translateX(12px);
+        transition:
+          opacity 0.3s ease,
+          transform 0.3s ease;
+      }
+      .mock-tr.show {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .mock-tr span {
+        font-size: 11px;
+        color: #ebebeb;
+      }
+      .mock-tr span.muted {
+        color: #555;
+      }
+      .mock-tr span.green {
+        color: #00c896;
+        font-weight: 700;
+      }
+      .mock-tr span.amber {
+        color: #f5a623;
+        font-weight: 700;
+      }
+      .mock-tr span.red {
+        color: #ff6b6b;
+        font-weight: 700;
+      }
+
+      /* SCENE 4 */
+      #s4 {
+        background: #0d0d1a;
+        z-index: 2;
+        padding: 36px 48px;
+        flex-direction: row;
+        gap: 44px;
+        align-items: center;
+      }
+      .wage-card {
+        flex: 1;
+        background: #111118;
+        border: 1px solid #1e1e2e;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .wage-header {
+        background: #1a1a28;
+        padding: 10px 14px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #555;
+      }
+      .wage-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 11px 14px;
+        border-bottom: 1px solid #0e0e18;
+        font-size: 12px;
+        opacity: 0;
+        transform: translateX(-10px);
+        transition:
+          opacity 0.35s,
+          transform 0.35s;
+      }
+      .wage-row.show {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .wage-row .wlabel {
+        color: #666;
+      }
+      .wage-row .wval {
+        font-weight: 700;
+      }
+      .wage-row .wval.cr {
+        color: #00c896;
+      }
+      .wage-row .wval.dr {
+        color: #ff6b6b;
+      }
+      .wage-total {
+        display: flex;
+        justify-content: space-between;
+        padding: 13px 14px;
+        background: #1e1400;
+        border-top: 2px solid #f5a623;
+        opacity: 0;
+        transform: translateX(-10px);
+        transition:
+          opacity 0.35s,
+          transform 0.35s;
+      }
+      .wage-total.show {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .wage-total .wlabel {
+        font-size: 14px;
+        font-weight: 800;
+        color: #ebebeb;
+      }
+      .wage-total .wval {
+        font-size: 18px;
+        font-weight: 800;
+        color: #f5a623;
+      }
+
+      /* SCENE 5 */
+      #s5 {
+        background: #060608;
+        z-index: 2;
+        padding: 36px 48px;
+        flex-direction: row;
+        gap: 44px;
+        align-items: center;
+      }
+      .bill-mock {
+        flex: 1;
+        background: #111118;
+        border: 1px solid #1e1e2e;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .bill-header {
+        background: #1a1a28;
+        padding: 10px 14px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #555;
+      }
+      .bill-prog {
+        padding: 12px 14px;
+        border-bottom: 1px solid #0e0e18;
+        opacity: 0;
+        transition: opacity 0.5s;
+      }
+      .bill-prog.show {
+        opacity: 1;
+      }
+      .bill-prog-head {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #ebebeb;
+        margin-bottom: 6px;
+      }
+      .bill-track {
+        height: 5px;
+        background: #1e1e2e;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .bill-fill {
+        height: 100%;
+        border-radius: 3px;
+        width: 0;
+        transition: width 1s ease;
+      }
+      .bill-fill.amber {
+        background: #f5a623;
+      }
+      .bill-fill.blue {
+        background: #4d9fff;
+      }
+      .bill-fill.green {
+        background: #00c896;
+      }
+      .bill-outstanding {
+        padding: 12px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #0e0e18;
+      }
+      .bill-outstanding .bo-label {
+        font-size: 13px;
+        font-weight: 800;
+        color: #ebebeb;
+      }
+      .bill-outstanding .bo-val {
+        font-size: 20px;
+        font-weight: 800;
+        color: #ff6b6b;
+      }
+      .payment-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 14px;
+        border-bottom: 1px solid #0a0a12;
+        font-size: 11px;
+        opacity: 0;
+        transform: translateY(6px);
+        transition:
+          opacity 0.3s,
+          transform 0.3s;
+      }
+      .payment-item.show {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .payment-item .pi-date {
+        color: #555;
+      }
+      .payment-item .pi-ref {
+        color: #ebebeb;
+      }
+      .payment-item .pi-amt {
+        color: #00c896;
+        font-weight: 700;
+      }
+
+      /* SCENE 6 */
+      #s6 {
+        background: #0d0d1a;
+        z-index: 2;
+        padding: 32px 44px;
+        flex-direction: column;
+      }
+      #s6 .s-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        color: #00c896;
+        margin-bottom: 8px;
+      }
+      #s6 .s-title {
+        font-size: 34px;
+        font-weight: 800;
+        color: #ebebeb;
+        margin-bottom: 16px;
+      }
+      .mod-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        width: 100%;
+      }
+      .mod-card {
+        background: #111118;
+        border: 1px solid #1e1e2e;
+        border-radius: 6px;
+        padding: 14px;
+        opacity: 0;
+        transform: scale(0.92);
+        transition:
+          opacity 0.35s,
+          transform 0.35s;
+      }
+      .mod-card.show {
+        opacity: 1;
+        transform: scale(1);
+      }
+      .mod-card .m-icon {
+        font-size: 20px;
+        margin-bottom: 6px;
+      }
+      .mod-card .m-name {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ebebeb;
+        margin-bottom: 3px;
+      }
+      .mod-card .m-desc {
+        font-size: 10px;
+        color: #555;
+        line-height: 1.5;
+      }
+
+      /* SCENE 7 */
+      #s7 {
+        background: #060608;
+        z-index: 2;
+        text-align: center;
+      }
+      #s7 .cta-top {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 3px;
+        color: #f5a623;
+        margin-bottom: 14px;
+      }
+      #s7 .cta-h1 {
+        font-size: 62px;
+        font-weight: 800;
+        color: #ebebeb;
+        line-height: 1;
+      }
+      #s7 .cta-h2 {
+        font-size: 62px;
+        font-weight: 800;
+        color: #f5a623;
+        line-height: 1;
+        margin-bottom: 14px;
+      }
+      #s7 .cta-sub {
+        font-size: 14px;
+        color: #666;
+        max-width: 520px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+      }
+      #s7 .cta-contacts {
+        display: flex;
+        gap: 44px;
+        justify-content: center;
+      }
+      #s7 .cta-contact .cc-val {
+        font-size: 14px;
+        font-weight: 700;
+        color: #f5a623;
+      }
+      #s7 .cta-contact .cc-key {
+        font-size: 10px;
+        color: #555;
+        letter-spacing: 1px;
+        margin-top: 2px;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .anim-up {
+        animation: fadeUp 0.7s ease forwards;
+      }
+      .anim-in {
+        animation: fadeIn 0.8s ease forwards;
+      }
+      .d1 {
+        animation-delay: 0.3s;
+        opacity: 0;
+      }
+      .d2 {
+        animation-delay: 0.6s;
+        opacity: 0;
+      }
+      .d3 {
+        animation-delay: 1s;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage-wrap">
+      <canvas id="rain"></canvas>
+
+      <!-- S1: INTRO -->
+      <div class="scene" id="s1">
+        <div style="text-align: center; position: relative; z-index: 3">
+          <div class="badge anim-up d1">CONTRACTOR COMMAND PLATFORM</div>
+          <div class="headline anim-up d2">
+            YOUR SITE.<br /><span class="amber">YOUR MONEY.</span><br />YOUR CONTROL.
+          </div>
+          <div class="tagline anim-in d3">Matrix Construction — Built for Indian contractors</div>
+        </div>
+      </div>
+
+      <!-- S2: PROBLEMS -->
+      <div class="scene" id="s2">
+        <div class="s-label">THE PAPER TRAIL PROBLEM</div>
+        <div class="s-title">What's Costing You Money Right Now</div>
+        <div class="pain-grid-v">
+          <div class="p-card">
+            <div class="p-icon">📋</div>
+            <div class="p-title">Register tampered</div>
+            <div class="p-desc">
+              Registers go missing or get altered. You pay for days never worked.
+            </div>
+          </div>
+          <div class="p-card">
+            <div class="p-icon">💸</div>
+            <div class="p-title">Advances with no trail</div>
+            <div class="p-desc">₹5,000 on Monday. By month end — gone from the wage sheet.</div>
+          </div>
+          <div class="p-card">
+            <div class="p-icon">🧾</div>
+            <div class="p-title">Bills don't match</div>
+            <div class="p-desc">Company says paid. You disagree. Neither side has clean proof.</div>
+          </div>
+          <div class="p-card">
+            <div class="p-icon">📂</div>
+            <div class="p-title">Proofs on WhatsApp</div>
+            <div class="p-desc">
+              Screenshots buried in 12 chats. Proving anything takes an hour.
+            </div>
+          </div>
+          <div class="p-card">
+            <div class="p-icon">🔢</div>
+            <div class="p-title">Wage errors monthly</div>
+            <div class="p-desc">Counting half-days on a notebook. One mistake = money lost.</div>
+          </div>
+          <div class="p-card">
+            <div class="p-icon">📊</div>
+            <div class="p-title">No site P&L view</div>
+            <div class="p-desc">You don't know if the site is profitable until months later.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S3: ATTENDANCE -->
+      <div class="scene" id="s3">
+        <div class="feat-left">
+          <div class="feat-tag">MODULE 01</div>
+          <div class="feat-heading">Attendance<br />That Sticks</div>
+          <div class="feat-sub">
+            Mark daily attendance in seconds. Full, half, absent — timestamped. No paper, no
+            disputes.
+          </div>
+          <ul class="feat-list">
+            <li>Worker-wise daily log with date & shift</li>
+            <li>Bulk mark for large gangs (30+ workers)</li>
+            <li>Monthly summary auto-generated</li>
+            <li>Audit trail — nothing disappears quietly</li>
+          </ul>
+        </div>
+        <div class="mock-table">
+          <div class="mock-th">
+            <span>WORKER</span><span>TRADE</span><span>TODAY</span><span>DAYS</span>
+          </div>
+          <div class="mock-tr" data-delay="0">
+            <span>Ramu K.</span><span class="muted">Mason</span><span class="green">Full</span
+            ><span>22.5</span>
+          </div>
+          <div class="mock-tr" data-delay="120">
+            <span>Suresh P.</span><span class="muted">Helper</span><span class="amber">Half</span
+            ><span>19.0</span>
+          </div>
+          <div class="mock-tr" data-delay="240">
+            <span>Ajay M.</span><span class="muted">Welder</span><span class="red">Absent</span
+            ><span>20.0</span>
+          </div>
+          <div class="mock-tr" data-delay="360">
+            <span>Vinod R.</span><span class="muted">Mason</span><span class="green">Full</span
+            ><span>23.0</span>
+          </div>
+          <div class="mock-tr" data-delay="480">
+            <span>Mohan D.</span><span class="muted">Painter</span><span class="green">Full</span
+            ><span>21.5</span>
+          </div>
+          <div class="mock-tr" data-delay="600">
+            <span>Karan S.</span><span class="muted">Helper</span><span class="green">Full</span
+            ><span>22.0</span>
+          </div>
+          <div class="mock-tr" data-delay="720">
+            <span>Priya N.</span><span class="muted">Mason</span><span class="green">Full</span
+            ><span>23.0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- S4: WAGES -->
+      <div class="scene" id="s4">
+        <div class="feat-left">
+          <div class="feat-tag" style="background: rgba(245, 166, 35, 0.12); color: #f5a623">
+            MODULE 02
+          </div>
+          <div class="feat-heading">Wages &<br />Advances</div>
+          <div class="feat-sub">
+            Per-worker rates, auto-deducted advances, half-day calculations — wage sheet built
+            automatically.
+          </div>
+          <ul class="feat-list">
+            <li>Per-worker daily rate setup</li>
+            <li>Pre-payment auto-deducted from wages</li>
+            <li>Post-payment tracking after work closes</li>
+            <li>Printable wage slip per worker</li>
+          </ul>
+        </div>
+        <div class="wage-card">
+          <div class="wage-header">Wage Sheet — Ramu K. | October 2026</div>
+          <div class="wage-row" data-delay="0">
+            <span class="wlabel">Days Worked</span><span class="wval">22.5 days</span>
+          </div>
+          <div class="wage-row" data-delay="150">
+            <span class="wlabel">Daily Rate</span><span class="wval">₹750 / day</span>
+          </div>
+          <div class="wage-row" data-delay="300">
+            <span class="wlabel">Gross Wages</span><span class="wval cr">+ ₹16,875</span>
+          </div>
+          <div class="wage-row" data-delay="450">
+            <span class="wlabel">Advance (Pre)</span><span class="wval dr">− ₹3,000</span>
+          </div>
+          <div class="wage-row" data-delay="600">
+            <span class="wlabel">Material Deduction</span><span class="wval dr">− ₹500</span>
+          </div>
+          <div class="wage-row" data-delay="750">
+            <span class="wlabel">Other Advance</span><span class="wval dr">− ₹1,000</span>
+          </div>
+          <div class="wage-total" data-delay="950">
+            <span class="wlabel">NET PAYABLE</span><span class="wval">₹12,375</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- S5: BILLS -->
+      <div class="scene" id="s5">
+        <div class="feat-left">
+          <div class="feat-tag" style="background: rgba(255, 107, 107, 0.12); color: #ff6b6b">
+            MODULE 03
+          </div>
+          <div class="feat-heading">Company Bills<br />& Settlement</div>
+          <div class="feat-sub">
+            Track every bill, payment received, and outstanding balance — with proof attachments so
+            disputes end fast.
+          </div>
+          <ul class="feat-list">
+            <li>Bill raised vs approved tracking</li>
+            <li>Payment received log with dates</li>
+            <li>Attach photos of signed bills</li>
+            <li>Running balance — what's owed right now</li>
+          </ul>
+        </div>
+        <div class="bill-mock">
+          <div class="bill-header">Project: Tower B | Bill #04</div>
+          <div class="bill-prog" id="bp1">
+            <div class="bill-prog-head">
+              <span>Bill Raised</span
+              ><span style="color: #f5a623; font-weight: 700">₹2,40,000</span>
+            </div>
+            <div class="bill-track"><div class="bill-fill amber" id="bf1"></div></div>
+          </div>
+          <div class="bill-prog" id="bp2">
+            <div class="bill-prog-head">
+              <span>Bill Approved</span
+              ><span style="color: #4d9fff; font-weight: 700">₹2,20,000</span>
+            </div>
+            <div class="bill-track"><div class="bill-fill blue" id="bf2"></div></div>
+          </div>
+          <div class="bill-prog" id="bp3">
+            <div class="bill-prog-head">
+              <span>Received</span><span style="color: #00c896; font-weight: 700">₹1,60,000</span>
+            </div>
+            <div class="bill-track"><div class="bill-fill green" id="bf3"></div></div>
+          </div>
+          <div class="bill-outstanding">
+            <span class="bo-label">OUTSTANDING</span>
+            <span class="bo-val">₹60,000</span>
+          </div>
+          <div class="payment-item" data-delay="0">
+            <span class="pi-date">15 Oct</span><span class="pi-ref">RTGS Transfer</span
+            ><span class="pi-amt">+₹80,000 📎</span>
+          </div>
+          <div class="payment-item" data-delay="200">
+            <span class="pi-date">02 Oct</span><span class="pi-ref">Cheque #4421</span
+            ><span class="pi-amt">+₹50,000 📎</span>
+          </div>
+          <div class="payment-item" data-delay="400">
+            <span class="pi-date">20 Sep</span><span class="pi-ref">NEFT Transfer</span
+            ><span class="pi-amt">+₹30,000 📎</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- S6: MODULES -->
+      <div class="scene" id="s6">
+        <div class="s-label">FULL PLATFORM</div>
+        <div class="s-title">Every Module You Need</div>
+        <div class="mod-grid">
+          <div class="mod-card" data-delay="0">
+            <div class="m-icon">📅</div>
+            <div class="m-name">Labour Attendance</div>
+            <div class="m-desc">Daily marking, monthly totals auto-calculated.</div>
+          </div>
+          <div class="mod-card" data-delay="80">
+            <div class="m-icon">💰</div>
+            <div class="m-name">Wage Management</div>
+            <div class="m-desc">Rates, deductions & printable wage slips.</div>
+          </div>
+          <div class="mod-card" data-delay="160">
+            <div class="m-icon">⬆️</div>
+            <div class="m-name">Pre Payments</div>
+            <div class="m-desc">Advances auto-adjusted against wages.</div>
+          </div>
+          <div class="mod-card" data-delay="240">
+            <div class="m-icon">⬇️</div>
+            <div class="m-name">Post Payments</div>
+            <div class="m-desc">Final settlements with full history.</div>
+          </div>
+          <div class="mod-card" data-delay="320">
+            <div class="m-icon">🏢</div>
+            <div class="m-name">Company Bills</div>
+            <div class="m-desc">Raise bills, track approvals, log payments.</div>
+          </div>
+          <div class="mod-card" data-delay="400">
+            <div class="m-icon">📎</div>
+            <div class="m-name">Payment Proofs</div>
+            <div class="m-desc">Attach receipts to every transaction.</div>
+          </div>
+          <div class="mod-card" data-delay="480">
+            <div class="m-icon">📊</div>
+            <div class="m-name">Site Expenses</div>
+            <div class="m-desc">Track material, tools & transport costs.</div>
+          </div>
+          <div class="mod-card" data-delay="560">
+            <div class="m-icon">📈</div>
+            <div class="m-name">Project Ledger</div>
+            <div class="m-desc">Income vs expense — know your margin.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S7: CTA -->
+      <div class="scene" id="s7">
+        <div class="cta-top">READY TO START?</div>
+        <div class="cta-h1">Stop Losing Money</div>
+        <div class="cta-h2">to Paperwork.</div>
+        <div class="cta-sub">
+          Matrix Construction handles every rupee, every worker, every bill — from the first advance
+          to the final settlement.
+        </div>
+        <div class="cta-contacts">
+          <div class="cta-contact">
+            <div class="cc-val">hello@matrixconstruction.in</div>
+            <div class="cc-key">EMAIL</div>
+          </div>
+          <div class="cta-contact">
+            <div class="cc-val">+91 99999 99999</div>
+            <div class="cc-key">WHATSAPP / CALL</div>
+          </div>
+          <div class="cta-contact">
+            <div class="cc-val">matrixconstruction.in</div>
+            <div class="cc-key">WEBSITE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="controls">
+      <button class="ctrl-btn" id="btn-prev">◀ Prev</button>
+      <button class="ctrl-btn" id="btn-play">⏸ Pause</button>
+      <button class="ctrl-btn" id="btn-next">Next ▶</button>
+      <span id="scene-counter">Scene 1 / 7</span>
+    </div>
+
+    <script>
+      const canvas = document.getElementById('rain')
+      const ctx = canvas.getContext('2d')
+      canvas.width = 960
+      canvas.height = 540
+      const CHARS = '01アイウエオカキスセソ∞₹BUILDTESTDEPLOY'.split('')
+      const COLS = Math.floor(960 / 14)
+      const drops = Array(COLS).fill(1)
+
+      function drawRain(alpha) {
+        ctx.fillStyle = `rgba(6,6,8,${alpha})`
+        ctx.fillRect(0, 0, 960, 540)
+        for (let i = 0; i < drops.length; i++) {
+          const ch = CHARS[Math.floor(Math.random() * CHARS.length)]
+          ctx.fillStyle = ch === '₹' || ch === '∞' ? '#F5A623' : '#00C896'
+          ctx.globalAlpha = Math.random() * 0.45 + 0.1
+          ctx.font = '13px Courier New'
+          ctx.fillText(ch, i * 14, drops[i] * 14)
+          ctx.globalAlpha = 1
+          if (drops[i] * 14 > 540 && Math.random() > 0.975) drops[i] = 0
+          drops[i]++
+        }
+      }
+
+      const SCENES = ['s1', 's2', 's3', 's4', 's5', 's6', 's7']
+      const DURATIONS = [5000, 6000, 6500, 6500, 7000, 6000, 8000]
+      let current = 0,
+        playing = true
+      let sceneTimer = null,
+        progressTimer = null,
+        progressStart = null
+
+      function showScene(idx) {
+        SCENES.forEach((id, i) => document.getElementById(id).classList.toggle('active', i === idx))
+        document.getElementById('scene-counter').textContent = `Scene ${idx + 1} / ${SCENES.length}`
+        animateScene(idx)
+        startProgress(idx)
+      }
+
+      function animateScene(idx) {
+        const id = SCENES[idx]
+        const el = document.getElementById(id)
+
+        if (id === 's2') {
+          el.querySelectorAll('.p-card').forEach((c, i) => {
+            c.classList.remove('show')
+            setTimeout(() => c.classList.add('show'), 300 + i * 150)
+          })
+        }
+        if (id === 's3') {
+          el.querySelectorAll('.mock-tr').forEach((r) => {
+            r.classList.remove('show')
+            setTimeout(() => r.classList.add('show'), 400 + parseInt(r.dataset.delay || 0))
+          })
+        }
+        if (id === 's4') {
+          el.querySelectorAll('.wage-row, .wage-total').forEach((r) => {
+            r.classList.remove('show')
+            setTimeout(() => r.classList.add('show'), 300 + parseInt(r.dataset.delay || 0))
+          })
+        }
+        if (id === 's5') {
+          ;['bf1', 'bf2', 'bf3'].forEach((id) => {
+            const e = document.getElementById(id)
+            if (e) e.style.width = '0'
+          })
+          ;['bp1', 'bp2', 'bp3'].forEach((bid, i) => {
+            const b = document.getElementById(bid)
+            b.classList.remove('show')
+            setTimeout(
+              () => {
+                b.classList.add('show')
+                const fill = document.getElementById('bf' + (i + 1))
+                setTimeout(() => (fill.style.width = ['100%', '92%', '67%'][i]), 80)
+              },
+              400 + i * 600,
+            )
+          })
+          el.querySelectorAll('.payment-item').forEach((p) => {
+            p.classList.remove('show')
+            setTimeout(() => p.classList.add('show'), 2400 + parseInt(p.dataset.delay || 0))
+          })
+        }
+        if (id === 's6') {
+          el.querySelectorAll('.mod-card').forEach((c) => {
+            c.classList.remove('show')
+            setTimeout(() => c.classList.add('show'), 300 + parseInt(c.dataset.delay || 0))
+          })
+        }
+      }
+
+      function startProgress(idx) {
+        clearTimeout(sceneTimer)
+        clearInterval(progressTimer)
+        const fill = document.getElementById('progress-fill')
+        fill.style.width = '0%'
+        progressStart = Date.now()
+        const dur = DURATIONS[idx]
+        if (!playing) return
+        progressTimer = setInterval(() => {
+          fill.style.width = Math.min(((Date.now() - progressStart) / dur) * 100, 100) + '%'
+        }, 50)
+        sceneTimer = setTimeout(() => {
+          current = (current + 1) % SCENES.length
+          showScene(current)
+        }, dur)
+      }
+
+      document.getElementById('btn-play').addEventListener('click', () => {
+        playing = !playing
+        document.getElementById('btn-play').textContent = playing ? '⏸ Pause' : '▶ Play'
+        if (playing) {
+          progressStart = Date.now()
+          startProgress(current)
+        } else {
+          clearTimeout(sceneTimer)
+          clearInterval(progressTimer)
+        }
+      })
+      document.getElementById('btn-next').addEventListener('click', () => {
+        current = (current + 1) % SCENES.length
+        showScene(current)
+      })
+      document.getElementById('btn-prev').addEventListener('click', () => {
+        current = (current - 1 + SCENES.length) % SCENES.length
+        showScene(current)
+      })
+
+      let frame = 0
+      function loop() {
+        frame++
+        if (frame % 2 === 0) drawRain([0, 6].includes(current) ? 0.06 : 0.22)
+        requestAnimationFrame(loop)
+      }
+
+      showScene(0)
+      loop()
+    </script>
+  </body>
+</html>

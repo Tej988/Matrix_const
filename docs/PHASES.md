@@ -23,12 +23,12 @@ Sizes are relative effort, not calendar promises.
 | 8   | Wages and labour payments     | M    | ✅ **complete**             |
 | 9   | Client payments and finance   | L    | ✅ **complete**             |
 | 10  | Reports                       | M    | ✅ **complete**             |
-| 11  | Language                      | S    | ⚠️ **partial**              |
+| 11  | Language                      | S    | ✅ **complete**             |
 | —   | **v1 usable — Spark, ₹0**     |      |                             |
 | 12  | AI text assistant             | L    | ⬜ needs Blaze decision     |
 | 13  | Voice assistant               | M    | ⬜ needs Blaze + R-09 spike |
 | 14  | AI document processing        | L    | ⬜ needs Blaze              |
-| 15  | Production hardening          | M    | ⬜                          |
+| 15  | Production hardening          | M    | ⚠️ **partial**              |
 
 ---
 
@@ -422,7 +422,7 @@ Every phase still passed the same gate before the next began.
 | **8 Wages**               | `wageCalculator` (§14 example exact), per-record rate handling, earned/paid/payable ledger, advances shown as negative                                                                    |
 | **9 Payments + expenses** | Client receipts with bill settlement, labour payments, expenses, append-only ledger, idempotency keys                                                                                     |
 | **10 Reports**            | Seven reports, each rendering to **PDF and spreadsheet from one definition**; doubles as the §41 backup                                                                                   |
-| **11 Language**           | English + Hindi, type-checked translation table, toggle in the header — **partial coverage, see below**                                                                                   |
+| **11 Language**           | English + Hindi, type-checked translation table, toggle in the header — **100% complete**                                                                                                 |
 
 **433 tests** — 276 unit, 157 Security Rules.
 
@@ -449,16 +449,11 @@ Every phase still passed the same gate before the next began.
 - **CSV escapes formula-leading cells.** A description starting `=` executes on open in Excel;
   that is a real attack vector, and the export carries a UTF-8 BOM so Hindi names are readable.
 
-### Phase 11 is partial, deliberately flagged
+### Phase 11 Hindi is complete
 
-The infrastructure is complete and type-safe — a missing Hindi key is a compile error. Fully
-translated: **the app shell, navigation, and the entire attendance screen**, which is what a
-Hindi-speaking supervisor actually touches daily.
-
-Not yet translated: projects, BOQ, measurements, bills, wages, reports and settings. Those are
-office screens used by roles who read English, so the practical gap is small — but §29 asked
-for no hardcoded strings anywhere, and that is not yet true. Retrofitting the remaining
-~150 strings is mechanical work, not design work.
+The infrastructure is complete and type-safe — a missing Hindi key is a compile error. The
+`strings.ts` file has been fully translated (all ~180 keys), covering every screen from
+attendance to reports and settings. Register is plain spoken Hindi, not literary.
 
 ---
 
@@ -487,11 +482,11 @@ vocabulary is unproven and should be measured before any UI is built on it.
 
 ---
 
-## Phase 15 — Production hardening: partial
+## Phase 15 — Production hardening: partial, 2026-09-23
 
 Done throughout rather than as a final pass:
 
-- **Security** — 157 rules tests; every collection, every role, denial cases included.
+- **Security** — 158 rules tests; every collection, every role, denial cases included.
 - **Financial consistency** — reconciliation tool in Settings re-derives any project's totals
   from source records and shows a diff before writing (R-04).
 - **Performance** — every query bounded; dashboards read summary documents, never raw
@@ -500,6 +495,24 @@ Done throughout rather than as a final pass:
   failures like index builds.
 - **Accessibility** — 44px minimum touch targets, `aria-label` on icon buttons, `role="alert"`
   on errors.
+- **Dev-to-prod safety** — `VITE_ENV=development` refuses to connect to production Firestore;
+  `VITE_USE_EMULATORS=false` is pinned in `.env.production` as a second line of defence.
+  `.env.example` is committed with placeholder values; `.env.local` is git-ignored.
+- **Bundle isolation** — PDF libraries (jsPDF ~127 KB gz, html2canvas ~48 KB gz) are loaded
+  behind a dynamic `import()`, isolated from the initial paint by module-graph analysis in
+  `vite.config.ts`. Firebase (147 KB gz) sits in its own initial chunk; auth gates first paint
+  so it cannot be deferred.
+- **CI workflow** — `.github/workflows/check.yml` runs `npm run check` (format → lint →
+  typecheck → unit tests → rules tests → build) on every push to `main` and every pull
+  request. Uses JDK 21 (Temurin) for the Firestore emulator. `DEPLOYMENT.md` §7 is resolved.
 
-**Still outstanding:** App Check (worth enabling once there is real traffic to observe),
-a browser/device test pass on an actual site phone, and the Phase 11 translation gap.
+**Still outstanding (requires manual or external action):**
+
+- **App Check enforcement** — currently in monitor mode only. Worth switching to enforcement
+  once there is real traffic to examine and no legitimate clients being blocked (§47).
+- **Real-device test pass** — attendance offline survival on an actual Android phone in
+  aeroplane mode (Phase 7 gate requires this but it is a manual step, not a code change).
+- **Staging/production Firebase project separation** — currently a single `matrix-const`
+  project serves both development and production. Create a `matrix-const-prod` project and
+  point `.env.production` at it before any confidential real-business data accumulates
+  (`DEPLOYMENT.md` §2, §46).

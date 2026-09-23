@@ -175,20 +175,18 @@ explicit config.
 
 ---
 
-## 7. CI/CD — deferred past MVP
+## 7. CI/CD
 
-**Not in the MVP** (owner decision, 2026-08-27). Spec §48 asks for GitHub Actions; that is
-deferred until the product is in real use.
+Implemented via GitHub Actions.
 
-The quality gates themselves are **not** deferred — they just run locally instead of in CI:
+The quality gate runs on every push and PR to `main` (`.github/workflows/check.yml`):
 
 ```bash
-npm run check      # lint → typecheck → unit tests → rules tests → build
+npm run check      # format → lint → typecheck → unit tests → rules tests → build
 ```
 
-Run it before every commit. It is the same command a CI workflow would run, so adding
-`.github/workflows/` later is a copy of one line and nothing else changes. Keeping the gate
-as a single script from day one is what makes that true.
+This enforces the same gate locally and in CI. The workflow provisions JDK 21 to run the
+Firestore emulator for the rules tests.
 
 ---
 
